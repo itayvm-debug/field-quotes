@@ -112,7 +112,7 @@ export function CompanySettingsForm({ initial, logoUrl: initialLogoUrl }: Props)
             type="button"
             onClick={() => logoInputRef.current?.click()}
             disabled={uploadingLogo}
-            className="text-sm text-blue-600 font-medium active:opacity-70 disabled:opacity-40"
+            className="text-sm text-orange-600 font-medium active:opacity-70 disabled:opacity-40"
           >
             {uploadingLogo ? 'מעלה...' : logoUrl ? 'החלף לוגו' : 'העלה לוגו'}
           </button>
@@ -212,7 +212,7 @@ export function CompanySettingsForm({ initial, logoUrl: initialLogoUrl }: Props)
         type="button"
         onClick={handleSave}
         disabled={saving}
-        className="w-full bg-blue-600 text-white py-4 rounded-2xl text-lg font-bold disabled:opacity-50 active:bg-blue-700 transition-colors"
+        className="w-full bg-orange-600 text-white py-4 rounded-2xl text-lg font-bold disabled:opacity-50 active:bg-orange-700 transition-colors"
       >
         {saving ? 'שומר...' : 'שמור הגדרות'}
       </button>
@@ -221,7 +221,7 @@ export function CompanySettingsForm({ initial, logoUrl: initialLogoUrl }: Props)
 }
 
 const inputCls =
-  'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

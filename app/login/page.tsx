@@ -1,12 +1,23 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-export default function LoginPage() {
+const INTERNAL_DOMAIN = 'field-quotes.internal'
+
+function toEmail(input: string): string {
+  const trimmed = input.trim()
+  if (trimmed.includes('@')) return trimmed
+  return trimmed.toLowerCase().replace(/\s+/g, '-') + '@' + INTERNAL_DOMAIN
+}
+
+function LoginForm() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const searchParams = useSearchParams()
+  const isInactive = searchParams.get('inactive') === '1'
+
+  const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -16,6 +27,7 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    const email = toEmail(login)
     const supabase = createClient()
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -41,20 +53,27 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-2 text-sm">כניסה למערכת</p>
         </div>
 
+        {isInactive && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 text-sm text-center mb-4 font-medium">
+            המשתמש אינו פעיל. פנה למנהל המערכת.
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                אימייל
+                שם משתמש / אימייל
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="name@company.com"
+                type="text"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="SHAI-ZENATI"
                 required
-                autoComplete="email"
+                autoComplete="username"
+                dir="ltr"
               />
             </div>
 
@@ -66,7 +85,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
@@ -82,7 +101,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white rounded-xl py-4 text-lg font-semibold disabled:opacity-60 active:bg-blue-700 transition-colors mt-2"
+              className="w-full bg-orange-600 text-white rounded-xl py-4 text-lg font-semibold disabled:opacity-60 active:bg-orange-700 transition-colors mt-2"
             >
               {loading ? 'נכנס...' : 'כניסה'}
             </button>
@@ -90,5 +109,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }

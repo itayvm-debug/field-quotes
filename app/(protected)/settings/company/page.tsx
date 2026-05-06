@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { CompanySettingsForm } from '@/components/CompanySettingsForm'
 
@@ -47,16 +46,10 @@ export default async function CompanySettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
-      <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-4">
-        <div className="flex items-center justify-between max-w-2xl mx-auto">
-          <Link href="/dashboard" className="text-gray-500 text-sm font-medium px-1 py-1">
-            ← חזור
-          </Link>
-          <h1 className="text-xl font-bold text-gray-900">הגדרות חברה</h1>
-          <div className="w-12" />
-        </div>
-      </header>
+    <div className="min-h-screen bg-gray-50 pb-8" dir="rtl">
+      <div className="px-4 pt-4 pb-2 max-w-2xl mx-auto">
+        <h1 className="text-xl font-bold text-gray-900">הגדרות חברה</h1>
+      </div>
 
       <main className="px-4 py-4 max-w-2xl mx-auto">
         <CompanySettingsForm initial={initial} logoUrl={logoUrl} />

@@ -28,7 +28,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
 
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">מע״מ {VAT_RATE}%</span>
+            <span className="text-sm text-gray-600">מע״מ {vatEnabled ? VAT_RATE : 0}%</span>
             {onVatToggle && (
               <button
                 type="button"
@@ -36,7 +36,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
                 aria-checked={vatEnabled}
                 onClick={() => onVatToggle(!vatEnabled)}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                  vatEnabled ? 'bg-blue-500' : 'bg-gray-200'
+                  vatEnabled ? 'bg-orange-500' : 'bg-gray-200'
                 }`}
               >
                 <span
@@ -47,8 +47,8 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
               </button>
             )}
           </div>
-          <span className={`font-medium ${vatEnabled ? 'text-gray-900' : 'text-gray-300'}`}>
-            {vatEnabled ? formatCurrency(vatAmount) : 'לא חל'}
+          <span className="font-medium text-gray-900">
+            {formatCurrency(vatAmount)}
           </span>
         </div>
 
@@ -56,7 +56,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
           <span className="font-bold text-gray-900 text-lg">
             {vatEnabled ? 'סה״כ כולל מע״מ' : 'סה״כ'}
           </span>
-          <span className="font-bold text-blue-600 text-xl">{formatCurrency(total)}</span>
+          <span className="font-bold text-orange-600 text-xl">{formatCurrency(total)}</span>
         </div>
       </div>
     </div>

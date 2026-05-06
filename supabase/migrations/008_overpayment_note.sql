@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE public.quotes
+  ADD COLUMN IF NOT EXISTS overpayment_note TEXT NOT NULL DEFAULT '';
+
+COMMIT;

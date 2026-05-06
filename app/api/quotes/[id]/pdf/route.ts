@@ -3,7 +3,7 @@ import React from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 import { QuotePDF } from '@/lib/pdf/QuotePDF'
-import type { PdfItem, PdfItemImage } from '@/lib/pdf/QuotePDF'
+import type { PdfItem, PdfItemImage, PdfCreator } from '@/lib/pdf/QuotePDF'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +46,34 @@ export async function GET(
       .from('company-assets')
       .createSignedUrl(company.logo_storage_path, 3600)
     logoUrl = urlData?.signedUrl ?? null
+  }
+
+  // Creator profile (for signature section)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const creatorUserId: string | null = (quote as any).user_id ?? null
+  let creator: PdfCreator | null = null
+  if (creatorUserId) {
+    const { data: creatorRaw } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', creatorUserId)
+      .single()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cp = creatorRaw as any
+    if (cp) {
+      let signatureUrl: string | null = null
+      if (cp.signature_storage_path) {
+        const { data: sigData } = await supabase.storage
+          .from('user-signatures')
+          .createSignedUrl(cp.signature_storage_path, 3600)
+        signatureUrl = sigData?.signedUrl ?? null
+      }
+      creator = {
+        full_name: cp.full_name ?? '',
+        job_title: cp.job_title ?? '',
+        signature_url: signatureUrl,
+      }
+    }
   }
 
   // Build items with signed image URLs
@@ -112,6 +140,7 @@ export async function GET(
         footer_text: company?.footer_text ?? '',
       },
       logoUrl,
+      creator,
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,11 +155,16 @@ export async function GET(
     return new Response(blob, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `inline; filename="${filename}"`,
       },
     })
   } catch (err) {
-    console.error('PDF render error:', err)
-    return NextResponse.json({ error: 'PDF generation failed' }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error('PDF render error:', message, stack)
+    return NextResponse.json(
+      { error: 'PDF generation failed', details: message, stack },
+      { status: 500 }
+    )
   }
 }

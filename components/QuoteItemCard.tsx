@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { PREDEFINED_UNITS, type QuoteItemDraft } from '@/types'
 import { calcItemTotal, formatCurrency } from '@/lib/calculations'
 import { ItemImages } from './ItemImages'
@@ -10,12 +11,14 @@ interface Props {
   onRemove: () => void
   quoteId?: string
   userId?: string
+  onAutoSave?: () => Promise<{ quoteId: string; dbId: string } | null>
 }
 
 const isCustomUnit = (unit: string) =>
   unit !== '' && !(PREDEFINED_UNITS as readonly string[]).includes(unit)
 
-export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Props) {
+export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAutoSave }: Props) {
+  const [autoSaving, setAutoSaving] = useState(false)
   const total = calcItemTotal(item.quantity, item.unit_price)
   const isCustom = isCustomUnit(item.unit)
   const selectValue = isCustom ? '__custom__' : item.unit
@@ -32,7 +35,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
       {/* Item number + remove */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-blue-600 bg-blue-50 rounded-full px-2.5 py-1">
+        <span className="text-xs font-semibold text-orange-600 bg-orange-50 rounded-full px-2.5 py-1">
           סעיף {item.item_number}
         </span>
         <button
@@ -52,7 +55,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
           value={item.description}
           onChange={(e) => onChange({ description: e.target.value })}
           rows={2}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           placeholder="תאר את העבודה..."
         />
       </div>
@@ -63,7 +66,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
         <select
           value={selectValue}
           onChange={(e) => handleUnitSelect(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
         >
           {PREDEFINED_UNITS.map((u) => (
             <option key={u} value={u}>
@@ -77,7 +80,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
             type="text"
             value={item.unit}
             onChange={(e) => onChange({ unit: e.target.value })}
-            className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder="הזן יחידה מותאמת"
           />
         )}
@@ -93,7 +96,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
             onChange={(e) => onChange({ quantity: e.target.value })}
             min="0"
             step="0.001"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder="0"
           />
         </div>
@@ -105,7 +108,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
             onChange={(e) => onChange({ unit_price: e.target.value })}
             min="0"
             step="0.01"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder="0.00"
           />
         </div>
@@ -118,7 +121,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
           type="text"
           value={item.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
           placeholder="הערות לסעיף זה..."
         />
       </div>
@@ -129,12 +132,29 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId }: Pro
         <span className="font-bold text-gray-900 text-lg">{formatCurrency(total)}</span>
       </div>
 
-      {/* Images — only for saved items */}
-      {item.dbId && quoteId && userId && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
+      {/* Images */}
+      <div className="mt-3 pt-3 border-t border-gray-100">
+        {item.dbId && quoteId && userId ? (
           <ItemImages itemDbId={item.dbId} quoteId={quoteId} userId={userId} />
-        </div>
-      )}
+        ) : onAutoSave ? (
+          <button
+            type="button"
+            disabled={autoSaving}
+            onClick={async () => {
+              setAutoSaving(true)
+              await onAutoSave()
+              setAutoSaving(false)
+            }}
+            className="w-full text-xs text-orange-500 font-medium py-1.5 border border-dashed border-orange-200 rounded-xl active:bg-orange-50 disabled:opacity-50 transition-colors"
+          >
+            {autoSaving ? 'שומר...' : '+ הוסף תמונה (ישמור אוטומטית)'}
+          </button>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-1">
+            שמור את ההצעה כדי להוסיף תמונות
+          </p>
+        )}
+      </div>
     </div>
   )
 }

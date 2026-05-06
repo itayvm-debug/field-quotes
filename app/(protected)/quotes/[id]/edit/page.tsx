@@ -16,13 +16,19 @@ export default async function EditQuotePage({ params }: Props) {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: quote } = await supabase
-    .from('quotes')
-    .select('*, quote_items(*)')
-    .eq('id', id)
-    .single()
+  const [{ data: quote }, { data: settings }] = await Promise.all([
+    supabase.from('quotes').select('*, quote_items(*)').eq('id', id).single(),
+    supabase.from('company_settings').select('logo_storage_path').single(),
+  ])
 
   if (!quote) notFound()
+
+  let logoUrl: string | null = null
+  if (settings?.logo_storage_path) {
+    const { data: logoData } = await supabase.storage
+      .from('company-assets').createSignedUrl(settings.logo_storage_path, 3600)
+    logoUrl = logoData?.signedUrl ?? null
+  }
 
   const header: QuoteHeaderDraft = {
     client_name: quote.client_name,
@@ -62,6 +68,7 @@ export default async function EditQuotePage({ params }: Props) {
       mode="edit"
       quoteId={id}
       userId={user.id}
+      logoUrl={logoUrl}
       initialHeader={header}
       initialItems={items}
     />

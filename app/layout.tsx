@@ -9,14 +9,27 @@ const rubik = Rubik({
 })
 
 export const metadata: Metadata = {
-  title: 'הצעות מחיר מהשטח',
+  title: 'Field Quotes',
   description: 'מערכת הצעות מחיר לקבלן ביצוע',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Field Quotes',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    apple: '/icons/apple-touch-icon.png',
+  },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: '#E86510',
 }
 
 export default function RootLayout({
