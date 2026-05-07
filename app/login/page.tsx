@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { loginIdentifierToEmail } from '@/lib/auth/username'
 
@@ -39,73 +40,98 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">הצעות מחיר</h1>
-          <p className="text-gray-500 mt-2 text-sm">כניסה למערכת</p>
-        </div>
+    <div className="min-h-screen flex" dir="ltr">
 
-        {isInactive && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 text-sm text-center mb-4 font-medium">
-            המשתמש אינו פעיל. פנה למנהל המערכת.
-          </div>
-        )}
-
-        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                שם משתמש / אימייל
-              </label>
-              <input
-                type="text"
-                value={login}
-                onChange={(e) => setLogin(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="שם משתמש או אימייל"
-                required
-                autoComplete="username"
-                dir="ltr"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                סיסמה
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-orange-600 text-white rounded-xl py-4 text-lg font-semibold disabled:opacity-60 active:bg-orange-700 transition-colors mt-2"
-            >
-              {loading ? 'נכנס...' : 'כניסה'}
-            </button>
-          </form>
-        </div>
-
-        <p className="text-center text-xs text-gray-400 leading-relaxed mt-6 px-2">
-          כל הזכויות במערכת, במסמכים, בעיצוב ובפונקציונליות שמורות לחברת נתן ולדמן ובניו בע״מ.
-          אין להעתיק, לשכפל, להפיץ או לעשות שימוש במערכת או בחלקים ממנה ללא אישור מראש ובכתב.
-        </p>
+      {/* Hero panel — desktop only */}
+      <div className="hidden lg:block relative flex-1">
+        <Image
+          src="/login-hero.png"
+          alt=""
+          fill
+          className="object-cover object-center"
+          priority
+          quality={85}
+          sizes="(max-width: 1024px) 0px, 60vw"
+        />
+        {/* Subtle depth veil */}
+        <div className="absolute inset-0 bg-black/10" />
+        {/* Right-edge fade into form panel */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent from-[50%] to-white" />
       </div>
+
+      {/* Form panel */}
+      <div
+        className="flex-1 flex flex-col items-center justify-center bg-gray-50 lg:bg-white px-6 py-12 lg:flex-none lg:w-[440px]"
+        dir="rtl"
+      >
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">הצעות מחיר</h1>
+            <p className="text-gray-500 mt-2 text-sm">כניסה למערכת</p>
+          </div>
+
+          {isInactive && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 text-sm text-center mb-4 font-medium">
+              המשתמש אינו פעיל. פנה למנהל המערכת.
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  שם משתמש / אימייל
+                </label>
+                <input
+                  type="text"
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="שם משתמש או אימייל"
+                  required
+                  autoComplete="username"
+                  dir="ltr"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  סיסמה
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="••••••••"
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-orange-600 text-white rounded-xl py-4 text-lg font-semibold disabled:opacity-60 active:bg-orange-700 transition-colors mt-2"
+              >
+                {loading ? 'נכנס...' : 'כניסה'}
+              </button>
+            </form>
+          </div>
+
+          <p className="text-center text-xs text-gray-400 leading-relaxed mt-6 px-2">
+            כל הזכויות במערכת, במסמכים, בעיצוב ובפונקציונליות שמורות לחברת נתן ולדמן ובניו בע״מ.
+            אין להעתיק, לשכפל, להפיץ או לעשות שימוש במערכת או בחלקים ממנה ללא אישור מראש ובכתב.
+          </p>
+        </div>
+      </div>
+
     </div>
   )
 }
