@@ -18,6 +18,7 @@ interface Props {
   userId: string
   companyName: string
   creatorProfiles?: Array<{ id: string; full_name: string; job_title: string }>
+  approvalQuoteIds?: Set<string>
 }
 
 const PAYMENT_FILTERS: Array<{ value: PaymentStatus | ''; label: string }> = [
@@ -28,7 +29,7 @@ const PAYMENT_FILTERS: Array<{ value: PaymentStatus | ''; label: string }> = [
   { value: 'closed_partial', label: 'נסגר' },
 ]
 
-export function DashboardList({ quotes, statusFilter, userRole, userId, companyName, creatorProfiles = [] }: Props) {
+export function DashboardList({ quotes, statusFilter, userRole, userId, companyName, creatorProfiles = [], approvalQuoteIds }: Props) {
   const isAdmin = userRole === 'admin'
   const profileMap = new Map(creatorProfiles.map((p) => [p.id, p]))
   const [search, setSearch] = useState('')
@@ -221,6 +222,11 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
                         {quote.overpayment_note && (
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
                             {paymentStatus === 'paid' ? 'שולם + חריגים' : 'כולל חריגים'}
+                          </span>
+                        )}
+                        {quoteStatus === 'accepted' && approvalQuoteIds?.has(quote.id) && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                            אישור קיים
                           </span>
                         )}
                         <span className="text-xs font-mono text-gray-400">

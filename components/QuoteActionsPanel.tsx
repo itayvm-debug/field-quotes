@@ -24,6 +24,16 @@ const REJECT_REASONS = [
   'אחר',
 ]
 
+interface PendingPaymentRequest {
+  id: string
+  requested_payment_status: string
+  requested_paid_amount: number
+  requested_closed_payment_note: string
+  requested_overpayment_note: string
+  requester_note: string
+  requested_at: string
+}
+
 interface Props {
   quoteId: string
   quoteNumber: string | null
@@ -40,6 +50,7 @@ interface Props {
   paymentClosedByName: string | null
   initialStatusNote?: string
   initialOverpaymentNote?: string
+  pendingPaymentRequest?: PendingPaymentRequest | null
 }
 
 export function QuoteActionsPanel({
@@ -48,6 +59,7 @@ export function QuoteActionsPanel({
   initialPaymentStatus, initialPaidAmount, initialClosedPaymentNote,
   initialPaymentClosedAt, paymentClosedByName,
   initialStatusNote = '', initialOverpaymentNote = '',
+  pendingPaymentRequest,
 }: Props) {
   const router = useRouter()
 
@@ -77,6 +89,13 @@ export function QuoteActionsPanel({
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteWorking, setDeleteWorking] = useState(false)
   const [shareState, setShareState] = useState<'idle' | 'loading' | 'unsupported'>('idle')
+
+  // Payment request (non-admin) / inline review (admin)
+  const [hasPendingRequest, setHasPendingRequest] = useState(!!pendingPaymentRequest)
+  const [inlineReviewAction, setInlineReviewAction] = useState<'approve' | 'reject' | null>(null)
+  const [inlineAdminNote, setInlineAdminNote] = useState('')
+  const [inlineReviewing, setInlineReviewing] = useState(false)
+  const [inlineReviewError, setInlineReviewError] = useState('')
 
   const isArchived = status === 'archived'
   const isAdmin = userRole === 'admin'
@@ -176,6 +195,33 @@ export function QuoteActionsPanel({
     setPaymentSaving(false)
   }
 
+  const doSubmitPaymentRequest = async () => {
+    setPaymentSaving(true)
+    setPaymentError('')
+
+    const res = await fetch(`/api/quotes/${quoteId}/payment-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requested_payment_status: paymentStatus,
+        requested_paid_amount: paidAmount,
+        requested_closed_payment_note: closedNote.trim(),
+        requested_overpayment_note: isOverpay && overpayChoice === 'yes' ? overpaymentNote.trim() : '',
+        requester_note: '',
+      }),
+    })
+
+    if (res.ok) {
+      setHasPendingRequest(true)
+      resetOverpayDialog()
+      router.refresh()
+    } else {
+      const data = await res.json()
+      setPaymentError(data.error ?? 'שגיאה בשליחת הבקשה')
+    }
+    setPaymentSaving(false)
+  }
+
   const handlePaymentSave = async () => {
     if (!canEdit) return
     if ((paymentStatus === 'partial' || paymentStatus === 'closed_partial') && paidAmount <= 0) {
@@ -192,7 +238,39 @@ export function QuoteActionsPanel({
       setOverpayChoice(null)
       return
     }
-    await doPaymentSave()
+    // Admin saves directly; non-admin submits a request
+    if (isAdmin) {
+      await doPaymentSave()
+    } else {
+      await doSubmitPaymentRequest()
+    }
+  }
+
+  const handleInlineReview = async (action: 'approve' | 'reject') => {
+    if (action === 'reject' && !inlineAdminNote.trim()) {
+      setInlineReviewAction('reject')
+      return
+    }
+    if (!pendingPaymentRequest) return
+    setInlineReviewing(true)
+    setInlineReviewError('')
+
+    const res = await fetch(`/api/admin/payment-requests/${pendingPaymentRequest.id}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, admin_note: inlineAdminNote }),
+    })
+
+    if (res.ok) {
+      setHasPendingRequest(false)
+      setInlineReviewAction(null)
+      setInlineAdminNote('')
+      router.push(`/quotes/${quoteId}`)
+    } else {
+      const data = await res.json()
+      setInlineReviewError(data.error ?? 'שגיאה')
+    }
+    setInlineReviewing(false)
   }
 
   const handleArchive = async () => {
@@ -471,11 +549,11 @@ export function QuoteActionsPanel({
                         </button>
                         <button
                           type="button"
-                          onClick={doPaymentSave}
+                          onClick={isAdmin ? doPaymentSave : doSubmitPaymentRequest}
                           disabled={!overpaymentNote.trim() || paymentSaving}
                           className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50"
                         >
-                          {paymentSaving ? 'שומר...' : 'אשר ושמור'}
+                          {paymentSaving ? 'שומר...' : (isAdmin ? 'אשר ושמור' : 'שלח לבדיקה')}
                         </button>
                       </div>
                     </div>
@@ -501,8 +579,71 @@ export function QuoteActionsPanel({
                   disabled={paymentSaving}
                   className="w-full py-2.5 bg-orange-600 text-white rounded-xl text-sm font-semibold active:bg-orange-700 disabled:opacity-50 transition-colors"
                 >
-                  {paymentSaving ? 'שומר...' : 'שמור סטטוס תשלום'}
+                  {paymentSaving
+                    ? (isAdmin ? 'שומר...' : 'שולח...')
+                    : (isAdmin
+                      ? 'שמור סטטוס תשלום'
+                      : (hasPendingRequest ? 'עדכן בקשה' : 'שלח לבדיקה')
+                    )
+                  }
                 </button>
+              )}
+
+              {/* Pending payment request card */}
+              {hasPendingRequest && pendingPaymentRequest && (
+                <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
+                  <p className="text-xs font-semibold text-orange-800">
+                    {isAdmin ? 'בקשת שינוי תשלום ממתינה לאישור' : 'הבקשה נשלחה — ממתינה לאישור אדמין'}
+                  </p>
+                  <div className="text-xs text-orange-700 space-y-1">
+                    <p>סטטוס מבוקש: {PAYMENT_STATUS_LABELS[pendingPaymentRequest.requested_payment_status as PaymentStatus] ?? pendingPaymentRequest.requested_payment_status}</p>
+                    {pendingPaymentRequest.requested_paid_amount > 0 && (
+                      <p>סכום: {formatCurrency(pendingPaymentRequest.requested_paid_amount)}</p>
+                    )}
+                    {pendingPaymentRequest.requested_overpayment_note && (
+                      <p>חריגים: {pendingPaymentRequest.requested_overpayment_note}</p>
+                    )}
+                    {pendingPaymentRequest.requester_note && (
+                      <p>הערה: {pendingPaymentRequest.requester_note}</p>
+                    )}
+                  </div>
+
+                  {isAdmin && (
+                    <div className="pt-2 border-t border-orange-200 space-y-2">
+                      {inlineReviewAction === 'reject' && (
+                        <input
+                          type="text"
+                          value={inlineAdminNote}
+                          onChange={(e) => setInlineAdminNote(e.target.value)}
+                          placeholder="סיבת דחייה (חובה)"
+                          disabled={inlineReviewing}
+                          className="w-full border border-red-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 bg-white disabled:opacity-50"
+                        />
+                      )}
+                      {inlineReviewError && (
+                        <p className="text-xs text-red-600">{inlineReviewError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleInlineReview('reject')}
+                          disabled={inlineReviewing}
+                          className="flex-1 py-2 border border-red-200 bg-red-50 text-red-600 rounded-xl text-xs font-semibold disabled:opacity-50"
+                        >
+                          {inlineReviewing ? '...' : 'דחה'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInlineReview('approve')}
+                          disabled={inlineReviewing}
+                          className="flex-1 py-2 bg-green-600 text-white rounded-xl text-xs font-semibold disabled:opacity-50"
+                        >
+                          {inlineReviewing ? 'מאשר...' : 'אשר'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}

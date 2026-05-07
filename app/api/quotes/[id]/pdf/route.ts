@@ -76,6 +76,14 @@ export async function GET(
     }
   }
 
+  // Check if quote has any approvals
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count: approvalCount } = await (supabase as any)
+    .from('quote_approvals')
+    .select('id', { count: 'exact', head: true })
+    .eq('quote_id', id)
+  const hasApproval = (approvalCount ?? 0) > 0
+
   // Build items with signed image URLs
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawItems: any[] = (quote.quote_items ?? []).sort(
@@ -129,6 +137,7 @@ export async function GET(
         payment_terms: quote.payment_terms,
         exclusions: quote.exclusions,
         vat_percentage: parseFloat(String(quote.vat_percentage)),
+        has_approval: hasApproval,
       },
       items,
       company: {

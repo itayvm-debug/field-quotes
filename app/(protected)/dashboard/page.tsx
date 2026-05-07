@@ -17,7 +17,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   if (!user) redirect('/login')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [quotesResult, profileResult, settingsResult, allProfilesResult] = await Promise.all([
+  const [quotesResult, profileResult, settingsResult, allProfilesResult, approvalsResult] = await Promise.all([
     (() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const q = (supabase as any)
@@ -32,12 +32,18 @@ export default async function DashboardPage({ searchParams }: Props) {
     supabase.from('company_settings').select('company_name').single(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from('profiles').select('id, full_name, job_title'),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('quote_approvals').select('quote_id'),
   ])
 
   const companyName = settingsResult.data?.company_name ?? ''
   const userRole = profileResult.data?.role ?? 'user'
   const creatorProfiles: Array<{ id: string; full_name: string; job_title: string }> =
     allProfilesResult.data ?? []
+  const approvalQuoteIds = new Set<string>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (approvalsResult.data ?? []).map((r: any) => r.quote_id)
+  )
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -55,6 +61,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         userId={user.id}
         companyName={companyName}
         creatorProfiles={creatorProfiles}
+        approvalQuoteIds={approvalQuoteIds}
       />
     </div>
   )

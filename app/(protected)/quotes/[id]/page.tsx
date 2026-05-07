@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calcSubtotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
 import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
+import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -75,6 +76,15 @@ export default async function QuoteViewPage({ params }: Props) {
       .from('profiles').select('full_name').eq('id', paymentClosedBy).single()
     paymentClosedByName = closer?.full_name || null
   }
+
+  // Fetch pending payment request for this quote (if any)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: pendingRequest } = await (supabase as any)
+    .from('payment_update_requests')
+    .select('id, requested_payment_status, requested_paid_amount, requested_closed_payment_note, requested_overpayment_note, requester_note, requested_at')
+    .eq('quote_id', id)
+    .eq('request_status', 'pending')
+    .maybeSingle()
 
   const sortedItems = ((quote.quote_items ?? []) as Array<{
     id: string; item_number: number; description: string; unit: string
@@ -260,14 +270,12 @@ export default async function QuoteViewPage({ params }: Props) {
 
         {/* PDF + Edit bottom buttons */}
         <div className="flex gap-3">
-          <a
-            href={`/api/quotes/${id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href={`/quotes/${id}/pdf-view`}
             className="flex-1 text-center py-3.5 border border-gray-200 rounded-2xl text-gray-700 font-semibold text-sm active:bg-gray-50 bg-white"
           >
             צפה ב-PDF
-          </a>
+          </Link>
           {(userRole === 'admin' || userRole === 'manager' || userRole === 'user') && (
             <Link
               href={`/quotes/${id}/edit`}
@@ -277,6 +285,11 @@ export default async function QuoteViewPage({ params }: Props) {
             </Link>
           )}
         </div>
+
+        {/* Approvals panel — accepted quotes only */}
+        {quoteStatus === 'accepted' && (
+          <QuoteApprovalsPanel quoteId={id} isAdmin={userRole === 'admin'} />
+        )}
 
         {/* Combined status + payment + share + archive */}
         <QuoteActionsPanel
@@ -295,6 +308,7 @@ export default async function QuoteViewPage({ params }: Props) {
           paymentClosedByName={paymentClosedByName}
           initialStatusNote={statusNote}
           initialOverpaymentNote={overpaymentNote}
+          pendingPaymentRequest={pendingRequest ?? null}
         />
       </main>
     </div>

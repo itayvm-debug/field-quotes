@@ -22,13 +22,22 @@ export async function AppHeader() {
   }
 
   let openRequestCount = 0
+  let pendingPaymentCount = 0
   if (isAdmin) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count } = await (supabase as any)
-      .from('support_requests')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-    openRequestCount = count ?? 0
+    const [supportResult, paymentResult] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from('support_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open'),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from('payment_update_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('request_status', 'pending'),
+    ])
+    openRequestCount = supportResult.count ?? 0
+    pendingPaymentCount = paymentResult.count ?? 0
   }
 
   return (
@@ -36,6 +45,7 @@ export async function AppHeader() {
       isAdmin={isAdmin}
       logoUrl={logoUrl}
       openRequestCount={openRequestCount}
+      pendingPaymentCount={pendingPaymentCount}
     />
   )
 }

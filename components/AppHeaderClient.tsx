@@ -9,6 +9,7 @@ interface Props {
   isAdmin: boolean
   logoUrl: string | null
   openRequestCount: number
+  pendingPaymentCount: number
 }
 
 function MenuLink({
@@ -38,7 +39,7 @@ function MenuLink({
   )
 }
 
-export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount }: Props) {
+export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount, pendingPaymentCount }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
 
@@ -73,6 +74,18 @@ export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount }: Props) {
                 {openRequestCount > 0 && (
                   <span className="absolute top-1 left-1 text-[10px] font-bold bg-orange-500 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none">
                     {openRequestCount > 9 ? '9+' : openRequestCount}
+                  </span>
+                )}
+              </Link>
+              <Link href="/admin/payment-requests" className="relative text-gray-400 p-2.5" title="בקשות תשלום">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                {pendingPaymentCount > 0 && (
+                  <span className="absolute top-1 left-1 text-[10px] font-bold bg-orange-500 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                    {pendingPaymentCount > 9 ? '9+' : pendingPaymentCount}
                   </span>
                 )}
               </Link>
@@ -190,6 +203,9 @@ export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount }: Props) {
                 <>
                   <MenuLink href="/admin/requests" onClick={closeMenu} badge={openRequestCount}>
                     פניות משתמשים
+                  </MenuLink>
+                  <MenuLink href="/admin/payment-requests" onClick={closeMenu} badge={pendingPaymentCount}>
+                    בקשות תשלום
                   </MenuLink>
                   <MenuLink href="/admin/analytics" onClick={closeMenu}>ניתוח נתונים</MenuLink>
                   <MenuLink href="/admin/users" onClick={closeMenu}>ניהול משתמשים</MenuLink>

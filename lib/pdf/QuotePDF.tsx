@@ -71,6 +71,7 @@ export interface PdfQuote {
   payment_terms: string
   exclusions: string
   vat_percentage: number
+  has_approval?: boolean
 }
 
 export interface PdfCompany {
@@ -415,6 +416,43 @@ const s = StyleSheet.create({
     marginTop: 1,
   },
 
+  // ── Approval note ────────────────────────────────────────────────────────────
+  approvalNote: {
+    borderTopWidth: 1,
+    borderTopColor: GRAY_MID,
+    paddingTop: 8,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  approvalNoteText: {
+    fontSize: 8,
+    color: GRAY_TEXT,
+    textAlign: 'right',
+  },
+
+  // ── Draft watermark ──────────────────────────────────────────────────────────
+  watermarkContainer: {
+    position: 'absolute',
+    top: '28%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  watermarkInner: {
+    transform: 'rotate(-45deg)',
+  },
+  watermarkText: {
+    fontFamily: 'Heebo',
+    fontWeight: 'bold',
+    fontSize: 96,
+    color: '#CCCCCC',
+    opacity: 0.18,
+    letterSpacing: 10,
+  },
+
   // ── Footer ───────────────────────────────────────────────────────────────────
   footer: {
     position: 'absolute',
@@ -459,6 +497,15 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   return (
     <Document>
       <Page size="A4" style={s.page}>
+
+        {/* ── Draft watermark (behind all content) ────────────────────── */}
+        {quote.status === 'draft' && (
+          <View style={s.watermarkContainer} fixed>
+            <View style={s.watermarkInner}>
+              <Text style={s.watermarkText}>טיוטה</Text>
+            </View>
+          </View>
+        )}
 
         {/* ── Top header band ─────────────────────────────────────────── */}
         <View style={s.topBand}>
@@ -632,6 +679,13 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
                 {creator.job_title ? ` - ${creator.job_title}` : ''}
               </Text>
               <Text style={s.signatureCompany}>{company.company_name}</Text>
+            </View>
+          )}
+
+          {/* ── Approval note ────────────────────────────────────────── */}
+          {quote.has_approval && (
+            <View style={s.approvalNote}>
+              <Text style={s.approvalNoteText}>✓ קיים אישור הצעה שמור במערכת</Text>
             </View>
           )}
         </View>
