@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AppHeaderClient } from '@/components/AppHeaderClient'
 
 export async function AppHeader() {
@@ -30,8 +31,9 @@ export async function AppHeader() {
         .from('support_requests')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'open'),
+      // RLS restricts SELECT to the requester — admin client needed for badge count
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
+      (createAdminClient() as any)
         .from('payment_update_requests')
         .select('id', { count: 'exact', head: true })
         .eq('request_status', 'pending'),

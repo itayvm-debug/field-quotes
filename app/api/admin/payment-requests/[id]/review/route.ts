@@ -51,7 +51,7 @@ export async function POST(
     }
     if (request.requested_payment_status === 'closed_partial') {
       quotePayload.closed_payment_note = request.requested_closed_payment_note ?? ''
-      quotePayload.payment_closed_by = request.requested_by
+      quotePayload.payment_closed_by = user.id  // admin who approved, not the requester
     } else {
       quotePayload.closed_payment_note = ''
     }

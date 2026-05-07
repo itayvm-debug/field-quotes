@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AdminPaymentRequestsPage } from '@/components/AdminPaymentRequestsPage'
 
 export default async function PaymentRequestsAdminPage() {
@@ -13,8 +14,9 @@ export default async function PaymentRequestsAdminPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
+  // RLS on payment_update_requests restricts SELECT to the requester — use admin client
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: requests } = await (supabase as any)
+  const { data: requests } = await (createAdminClient() as any)
     .from('payment_update_requests')
     .select(`
       id, quote_id, requested_at,
