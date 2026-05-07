@@ -3,13 +3,7 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { usernameToInternalEmail } from '@/lib/auth/username'
-
-function toEmail(input: string): string {
-  const trimmed = input.trim()
-  if (trimmed.includes('@')) return trimmed
-  return usernameToInternalEmail(trimmed)
-}
+import { loginIdentifierToEmail } from '@/lib/auth/username'
 
 function LoginForm() {
   const router = useRouter()
@@ -26,7 +20,7 @@ function LoginForm() {
     setLoading(true)
     setError(null)
 
-    const email = toEmail(login)
+    const email = loginIdentifierToEmail(login)
     const supabase = createClient()
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 

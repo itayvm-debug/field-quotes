@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/calculations'
-import { deriveUsernameFromEmail, usernameToInternalEmail, isInternalEmail } from '@/lib/auth/username'
+import { deriveUsernameFromEmail, loginIdentifierToEmail, isInternalEmail } from '@/lib/auth/username'
 import type { AdminUserRow } from '@/app/(protected)/admin/users/page'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -317,7 +317,7 @@ function CreateUserModal({
   const [error, setError] = useState('')
 
   const mismatch = confirm.length > 0 && password !== confirm
-  const previewEmail = username.trim() ? usernameToInternalEmail(username) : ''
+  const previewEmail = username.trim() ? loginIdentifierToEmail(username) : ''
 
   const handleCreate = async () => {
     if (!username.trim() || !fullName.trim() || !password) { setError('שם משתמש, שם מלא וסיסמה הם שדות חובה'); return }
@@ -345,14 +345,14 @@ function CreateUserModal({
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">שם משתמש <span className="text-red-400">*</span></label>
+          <label className="block text-xs text-gray-500 mb-1">שם משתמש / אימייל <span className="text-red-400">*</span></label>
           <input value={username} onChange={(e) => setUsername(e.target.value)} disabled={saving}
-            placeholder="SHAI-ZENATI"
+            placeholder="SHAI-ZENATI או user@gmail.com"
             autoComplete="off"
             dir="ltr"
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 font-mono" />
           {previewEmail && (
-            <p className="text-[11px] text-gray-400 mt-1 dir-ltr" dir="ltr">{previewEmail}</p>
+            <p className="text-[11px] text-gray-400 mt-1" dir="ltr">כניסה עם: {previewEmail}</p>
           )}
         </div>
         <div>
@@ -483,8 +483,10 @@ export function AdminUsersPage({ users }: { users: AdminUserRow[] }) {
                   <td className="px-3 py-3 whitespace-nowrap" dir="ltr">
                     <span className="font-mono text-gray-700 text-xs">{deriveUsernameFromEmail(u.email) || '—'}</span>
                   </td>
-                  <td className="px-3 py-3 text-gray-400 whitespace-nowrap text-xs" dir="ltr">
-                    {isInternalEmail(u.email) ? '—' : (u.email || '—')}
+                  <td className="px-3 py-3 whitespace-nowrap text-xs" dir="ltr">
+                    {isInternalEmail(u.email)
+                      ? <span className="text-gray-300">{u.email}</span>
+                      : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-3 py-3 text-gray-500 whitespace-nowrap">{u.job_title || '—'}</td>
                   <td className="px-3 py-3 text-center">

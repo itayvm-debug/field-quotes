@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SignaturePad } from '@/components/SignaturePad'
+import { SignatureImageUpload } from '@/components/SignatureImageUpload'
 
 interface Props {
   userId: string
@@ -27,6 +28,7 @@ export function ProfileForm({
   const [signatureUrl, setSignatureUrl] = useState<string | null>(initialSignatureUrl)
   const [signaturePath, setSignaturePath] = useState<string | null>(initialSignaturePath)
   const [showPad, setShowPad] = useState(!initialSignaturePath)
+  const [signatureMode, setSignatureMode] = useState<'draw' | 'upload'>('draw')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -61,6 +63,32 @@ export function ProfileForm({
     const { error: upErr } = await supabase.storage
       .from('user-signatures')
       .upload(path, file, { upsert: true })
+
+    if (upErr) {
+      setError('שגיאה בשמירת החתימה')
+      setUploading(false)
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from('profiles').update({ signature_storage_path: path } as any).eq('id', userId)
+    const { data: urlData } = await supabase.storage.from('user-signatures').createSignedUrl(path, 3600)
+    setSignaturePath(path)
+    setSignatureUrl(urlData?.signedUrl ?? null)
+    setShowPad(false)
+    setUploading(false)
+    router.refresh()
+  }
+
+  const handleImageSave = async (file: File) => {
+    setUploading(true)
+    setError('')
+    const supabase = createClient()
+    const path = `${userId}/signature.png`
+
+    const { error: upErr } = await supabase.storage
+      .from('user-signatures')
+      .upload(path, file, { contentType: file.type, upsert: true })
 
     if (upErr) {
       setError('שגיאה בשמירת החתימה')
@@ -140,7 +168,38 @@ export function ProfileForm({
 
         {showPad ? (
           <>
-            <SignaturePad onSave={handleSignatureSave} disabled={uploading} />
+            {/* Tab switcher */}
+            <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSignatureMode('draw')}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  signatureMode === 'draw'
+                    ? 'bg-orange-600 text-white'
+                    : 'bg-white text-gray-500 active:bg-gray-50'
+                }`}
+              >
+                שרטוט
+              </button>
+              <button
+                type="button"
+                onClick={() => setSignatureMode('upload')}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  signatureMode === 'upload'
+                    ? 'bg-orange-600 text-white'
+                    : 'bg-white text-gray-500 active:bg-gray-50'
+                }`}
+              >
+                העלאת תמונה
+              </button>
+            </div>
+
+            {signatureMode === 'draw' ? (
+              <SignaturePad onSave={handleSignatureSave} disabled={uploading} />
+            ) : (
+              <SignatureImageUpload onSave={handleImageSave} disabled={uploading} />
+            )}
+
             {signaturePath && (
               <button
                 type="button"

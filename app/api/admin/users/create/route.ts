@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { usernameToInternalEmail } from '@/lib/auth/username'
+import { loginIdentifierToEmail } from '@/lib/auth/username'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
   }
 
-  const email = usernameToInternalEmail(String(username))
+  const email = loginIdentifierToEmail(String(username))
   const adminClient = createAdminClient()
 
   const { data: newAuthUser, error: createErr } = await adminClient.auth.admin.createUser({
