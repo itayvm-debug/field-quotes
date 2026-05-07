@@ -75,6 +75,9 @@ export function QuoteCardActions({
     (paymentStatus === 'partial' || paymentStatus === 'closed_partial' || paymentStatus === 'paid') &&
     paidAmount > totalAmount
 
+  // Non-admin users must submit payment data through the approval flow
+  const hasPaymentData = selectedStatus === 'accepted' && paymentStatus !== 'unpaid'
+
   const resetOverpayDialog = () => {
     setShowOverpayDialog(false)
     setOverpayChoice(null)
@@ -155,6 +158,41 @@ export function QuoteCardActions({
     setSaveError('')
     const supabase = createClient()
 
+    // Non-admin with payment data → update quote status (if changing), then submit payment request
+    if (!isAdmin && hasPaymentData) {
+      if (selectedStatus !== currentStatus) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: statusErr } = await (supabase.from('quotes').update({ status: selectedStatus } as any).eq('id', quoteId))
+        if (statusErr) {
+          setSaveError(`שגיאה: ${statusErr.message}`)
+          setSaving(false)
+          return
+        }
+      }
+      const res = await fetch(`/api/quotes/${quoteId}/payment-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requested_payment_status: paymentStatus,
+          requested_paid_amount: paidAmount,
+          requested_closed_payment_note: closedNote.trim(),
+          requested_overpayment_note: isOverpay && overpayChoice === 'yes' ? overpaymentNote.trim() : '',
+          requester_note: '',
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setSaveError((data as { error?: string }).error ?? 'שגיאה בשליחת הבקשה')
+        setSaving(false)
+        return
+      }
+      setSaving(false)
+      setStep('idle')
+      router.refresh()
+      return
+    }
+
+    // Admin or no payment data: direct update to quotes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const quotePayload: Record<string, any> = { status: selectedStatus }
 
@@ -240,10 +278,12 @@ export function QuoteCardActions({
   // ── Update status panel ───────────────────────────────────────────────────
   if (step === 'update-status') {
     const saveButtonLabel = saving
-      ? 'שומר...'
+      ? ((!isAdmin && hasPaymentData) ? 'שולח...' : 'שומר...')
       : (showOverpayDialog && overpayChoice === 'yes')
-        ? 'אשר ושמור'
-        : 'שמור'
+        ? (isAdmin ? 'אשר ושמור' : 'שלח לבדיקה')
+        : (!isAdmin && hasPaymentData)
+          ? 'שלח לבדיקה'
+          : 'שמור'
 
     return (
       <div className="border-t border-gray-100 bg-gray-50 px-4 py-3 rounded-b-2xl">
