@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { calcSubtotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
 import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
@@ -77,9 +78,10 @@ export default async function QuoteViewPage({ params }: Props) {
     paymentClosedByName = closer?.full_name || null
   }
 
-  // Fetch pending payment request for this quote (if any)
+  // Fetch pending payment request via admin client — RLS on payment_update_requests
+  // restricts SELECT to the requester only, so the user-session client returns null for admins.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: pendingRequest } = await (supabase as any)
+  const { data: pendingRequest } = await (createAdminClient() as any)
     .from('payment_update_requests')
     .select('id, requested_payment_status, requested_paid_amount, requested_closed_payment_note, requested_overpayment_note, requester_note, requested_at')
     .eq('quote_id', id)

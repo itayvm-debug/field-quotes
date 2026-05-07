@@ -435,22 +435,22 @@ const s = StyleSheet.create({
   // ── Draft watermark ──────────────────────────────────────────────────────────
   watermarkContainer: {
     position: 'absolute',
-    top: '28%',
+    top: '38%',
     left: 0,
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
   watermarkInner: {
-    transform: 'rotate(-45deg)',
+    transform: 'rotate(-35deg)',
   },
   watermarkText: {
     fontFamily: 'Heebo',
     fontWeight: 'bold',
-    fontSize: 96,
-    color: '#CCCCCC',
-    opacity: 0.18,
-    letterSpacing: 10,
+    fontSize: 100,
+    color: '#9CA3AF',
+    opacity: 0.25,
+    letterSpacing: 8,
   },
 
   // ── Footer ───────────────────────────────────────────────────────────────────
@@ -497,15 +497,6 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   return (
     <Document>
       <Page size="A4" style={s.page}>
-
-        {/* ── Draft watermark (behind all content) ────────────────────── */}
-        {quote.status === 'draft' && (
-          <View style={s.watermarkContainer} fixed>
-            <View style={s.watermarkInner}>
-              <Text style={s.watermarkText}>טיוטה</Text>
-            </View>
-          </View>
-        )}
 
         {/* ── Top header band ─────────────────────────────────────────── */}
         <View style={s.topBand}>
@@ -689,6 +680,15 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
             </View>
           )}
         </View>
+
+        {/* ── Draft watermark (over body, under footer) ───────────────── */}
+        {quote.status === 'draft' && (
+          <View style={s.watermarkContainer} fixed>
+            <View style={s.watermarkInner}>
+              <Text style={s.watermarkText}>טיוטה</Text>
+            </View>
+          </View>
+        )}
 
         {/* ── Footer ──────────────────────────────────────────────────── */}
         <View style={s.footer} fixed>
