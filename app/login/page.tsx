@@ -3,13 +3,12 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-
-const INTERNAL_DOMAIN = 'field-quotes.internal'
+import { usernameToInternalEmail } from '@/lib/auth/username'
 
 function toEmail(input: string): string {
   const trimmed = input.trim()
   if (trimmed.includes('@')) return trimmed
-  return trimmed.toLowerCase().replace(/\s+/g, '-') + '@' + INTERNAL_DOMAIN
+  return usernameToInternalEmail(trimmed)
 }
 
 function LoginForm() {

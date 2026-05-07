@@ -3,20 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/calculations'
+import { deriveUsernameFromEmail, usernameToInternalEmail, isInternalEmail } from '@/lib/auth/username'
 import type { AdminUserRow } from '@/app/(protected)/admin/users/page'
-
-const INTERNAL_DOMAIN = 'field-quotes.internal'
-
-function deriveUsername(email: string): string {
-  if (email.endsWith('@' + INTERNAL_DOMAIN)) {
-    return email.replace('@' + INTERNAL_DOMAIN, '').toUpperCase()
-  }
-  return ''
-}
-
-function usernameToEmail(username: string): string {
-  return username.trim().toLowerCase().replace(/\s+/g, '-') + '@' + INTERNAL_DOMAIN
-}
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'מנהל מערכת',
@@ -100,20 +88,46 @@ function EditModal({
   )
 }
 
+// ── Eye toggle icon ───────────────────────────────────────────────────────────
+function EyeIcon({ visible }: { visible: boolean }) {
+  if (visible) {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  )
+}
+
 // ── Reset password modal ──────────────────────────────────────────────────────
 function ResetPasswordModal({
   user,
   onClose,
-  onSaved,
 }: {
   user: AdminUserRow
   onClose: () => void
-  onSaved: () => void
 }) {
+  const [phase, setPhase] = useState<'form' | 'success'>('form')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Success phase only
+  const [revealNew, setRevealNew] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const mismatch = confirm.length > 0 && password !== confirm
 
@@ -122,38 +136,159 @@ function ResetPasswordModal({
     if (password !== confirm) { setError('הסיסמאות אינן זהות'); return }
     setSaving(true)
     setError('')
-    const res = await fetch('/api/admin/users/reset-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_user_id: user.id, new_password: password }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error ?? 'שגיאה באיפוס'); setSaving(false); return }
-    onSaved()
+
+    let res: Response
+    try {
+      res = await fetch('/api/admin/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_user_id: user.id, new_password: password }),
+      })
+    } catch {
+      setError('שגיאת רשת — לא ניתן לתקשר עם השרת')
+      setSaving(false)
+      return
+    }
+
+    let data: Record<string, unknown> = {}
+    try {
+      data = await res.json()
+    } catch {
+      setError('שגיאת שרת — תגובה לא תקינה')
+      setSaving(false)
+      return
+    }
+
+    if (!res.ok) {
+      setError((data.error as string) ?? 'שגיאה באיפוס הסיסמה')
+      setSaving(false)
+      return
+    }
+
+    // Success — enter display phase (password lives only in client state)
+    setSaving(false)
+    setPhase('success')
+  }
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(password)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard API not available — user can copy manually
+    }
+  }
+
+  const handleClose = () => {
+    // Wipe password from state before closing
+    setPassword('')
+    setConfirm('')
+    setPhase('form')
+    onClose()
+  }
+
+  if (phase === 'success') {
+    return (
+      <ModalBackdrop onClose={handleClose}>
+        <h2 className="text-base font-semibold text-gray-900 mb-1">הסיסמה עודכנה בהצלחה</h2>
+        <p className="text-xs text-gray-400 mb-4">{user.full_name} · {deriveUsernameFromEmail(user.email) || user.email}</p>
+
+        {/* Temporary password display */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-3">
+          <p className="text-xs text-gray-500 mb-2">סיסמה חדשה:</p>
+          <div className="flex items-center gap-2">
+            <span className="flex-1 font-mono text-sm text-gray-900 break-all" dir="ltr">
+              {revealNew ? password : '•'.repeat(Math.min(password.length, 12))}
+            </span>
+            <button
+              type="button"
+              onClick={() => setRevealNew((v) => !v)}
+              className="text-gray-400 p-1.5 rounded-lg active:bg-gray-200 shrink-0"
+              title={revealNew ? 'הסתר' : 'הצג'}
+            >
+              <EyeIcon visible={revealNew} />
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="w-full py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 active:bg-gray-50 mb-3"
+        >
+          {copied ? '✓ הועתק' : 'העתק סיסמה'}
+        </button>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+          <p className="text-xs text-amber-800 leading-relaxed">
+            ⚠️ הסיסמה מוצגת כעת בלבד. לאחר סגירת החלון לא ניתן יהיה לצפות בה שוב. שמור אותה במקום מאובטח.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleClose}
+          className="w-full py-2.5 bg-orange-600 text-white rounded-xl text-sm font-semibold active:bg-orange-700"
+        >
+          סגור
+        </button>
+      </ModalBackdrop>
+    )
   }
 
   return (
-    <ModalBackdrop onClose={onClose}>
+    <ModalBackdrop onClose={handleClose}>
       <h2 className="text-base font-semibold text-gray-900 mb-1">איפוס סיסמה</h2>
-      <p className="text-xs text-gray-400 mb-4">{user.full_name} · {user.email}</p>
+      <p className="text-xs text-gray-400 mb-4">{user.full_name} · {deriveUsernameFromEmail(user.email) || user.email}</p>
       <div className="space-y-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1">סיסמה חדשה</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={saving}
-            autoComplete="new-password"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={saving}
+              autoComplete="new-password"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute inset-y-0 left-2 flex items-center text-gray-400 active:text-gray-600"
+              tabIndex={-1}
+            >
+              <EyeIcon visible={showPassword} />
+            </button>
+          </div>
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">אימות סיסמה</label>
-          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={saving}
-            autoComplete="new-password"
-            className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${mismatch ? 'border-red-300' : 'border-gray-200'}`} />
+          <div className="relative">
+            <input
+              type={showConfirm ? 'text' : 'password'}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              disabled={saving}
+              autoComplete="new-password"
+              className={`w-full border rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${mismatch ? 'border-red-300' : 'border-gray-200'}`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm((v) => !v)}
+              className="absolute inset-y-0 left-2 flex items-center text-gray-400 active:text-gray-600"
+              tabIndex={-1}
+            >
+              <EyeIcon visible={showConfirm} />
+            </button>
+          </div>
           {mismatch && <p className="text-xs text-red-500 mt-1">הסיסמאות אינן זהות</p>}
         </div>
       </div>
       {error && <p className="text-xs text-red-500 mt-3">{error}</p>}
       <div className="flex gap-2 mt-4">
-        <button onClick={onClose} disabled={saving}
+        <button onClick={handleClose} disabled={saving}
           className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 disabled:opacity-50">ביטול</button>
         <button onClick={handleSave} disabled={saving || password.length < 6 || mismatch}
           className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
@@ -182,7 +317,7 @@ function CreateUserModal({
   const [error, setError] = useState('')
 
   const mismatch = confirm.length > 0 && password !== confirm
-  const previewEmail = username.trim() ? usernameToEmail(username) : ''
+  const previewEmail = username.trim() ? usernameToInternalEmail(username) : ''
 
   const handleCreate = async () => {
     if (!username.trim() || !fullName.trim() || !password) { setError('שם משתמש, שם מלא וסיסמה הם שדות חובה'); return }
@@ -346,10 +481,10 @@ export function AdminUsersPage({ users }: { users: AdminUserRow[] }) {
                     {u.full_name || <span className="text-gray-300">(ללא שם)</span>}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap" dir="ltr">
-                    <span className="font-mono text-gray-700 text-xs">{deriveUsername(u.email) || '—'}</span>
+                    <span className="font-mono text-gray-700 text-xs">{deriveUsernameFromEmail(u.email) || '—'}</span>
                   </td>
                   <td className="px-3 py-3 text-gray-400 whitespace-nowrap text-xs" dir="ltr">
-                    {u.email.endsWith('@' + INTERNAL_DOMAIN) ? '—' : (u.email || '—')}
+                    {isInternalEmail(u.email) ? '—' : (u.email || '—')}
                   </td>
                   <td className="px-3 py-3 text-gray-500 whitespace-nowrap">{u.job_title || '—'}</td>
                   <td className="px-3 py-3 text-center">
@@ -417,7 +552,7 @@ export function AdminUsersPage({ users }: { users: AdminUserRow[] }) {
 
       {/* Modals */}
       {editUser && <EditModal user={editUser} onClose={() => setEditUser(null)} onSaved={onSaved} />}
-      {resetUser && <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} onSaved={onSaved} />}
+      {resetUser && <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} />}
       {showCreate && <CreateUserModal onClose={() => setShowCreate(false)} onSaved={onSaved} />}
     </>
   )
