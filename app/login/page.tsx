@@ -63,7 +63,7 @@ function LoginForm() {
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="SHAI-ZENATI"
+                placeholder="שם משתמש או אימייל"
                 required
                 autoComplete="username"
                 dir="ltr"
@@ -100,6 +100,11 @@ function LoginForm() {
             </button>
           </form>
         </div>
+
+        <p className="text-center text-xs text-gray-400 leading-relaxed mt-6 px-2">
+          כל הזכויות במערכת, במסמכים, בעיצוב ובפונקציונליות שמורות לחברת נתן ולדמן ובניו בע״מ.
+          אין להעתיק, לשכפל, להפיץ או לעשות שימוש במערכת או בחלקים ממנה ללא אישור מראש ובכתב.
+        </p>
       </div>
     </div>
   )
