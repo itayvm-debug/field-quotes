@@ -79,7 +79,7 @@ export function QuoteApprovalsPanel({ quoteId, isAdmin }: Props) {
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-      <p className="text-xs text-gray-400 mb-3">אישור הצעה</p>
+      <p className="text-xs text-gray-400 mb-3">אסמכתא אישור הצעה</p>
 
       {loading ? (
         <p className="text-xs text-gray-400">טוען...</p>

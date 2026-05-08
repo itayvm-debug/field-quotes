@@ -226,7 +226,7 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
                         )}
                         {quoteStatus === 'accepted' && approvalQuoteIds?.has(quote.id) && (
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
-                            אישור קיים
+                            אסמכתא אישור הצעה
                           </span>
                         )}
                         <span className="text-xs font-mono text-gray-400">
