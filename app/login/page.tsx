@@ -40,10 +40,10 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex" dir="ltr">
+    <div className="min-h-screen relative" dir="rtl">
 
-      {/* Hero panel — desktop only */}
-      <div className="hidden lg:block relative flex-1">
+      {/* Desktop: full-screen hero image */}
+      <div className="absolute inset-0 hidden lg:block">
         <Image
           src="/login-hero.png"
           alt=""
@@ -51,20 +51,30 @@ function LoginForm() {
           className="object-cover object-center"
           priority
           quality={85}
-          sizes="(max-width: 1024px) 0px, 60vw"
+          sizes="100vw"
         />
-        {/* Subtle depth veil */}
-        <div className="absolute inset-0 bg-black/10" />
-        {/* Right-edge fade into form panel */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent from-[50%] to-white" />
+        {/* White wash — dims image to keep card readable while image stays as atmosphere */}
+        <div className="absolute inset-0 bg-white/55" />
       </div>
 
-      {/* Form panel */}
-      <div
-        className="flex-1 flex flex-col items-center justify-center bg-gray-50 lg:bg-white px-6 py-12 lg:flex-none lg:w-[440px]"
-        dir="rtl"
-      >
+      {/* Mobile: plain background */}
+      <div className="lg:hidden absolute inset-0 bg-gray-50" />
+
+      {/* Content — truly centered on screen */}
+      <div className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
+
+          {/* Mobile: company logo above title */}
+          <div className="lg:hidden flex justify-center mb-5">
+            <Image
+              src="/company-logo.png"
+              alt="נתן ולדמן ובניו בע״מ"
+              width={80}
+              height={80}
+              className="object-contain"
+            />
+          </div>
+
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900">הצעות מחיר</h1>
             <p className="text-gray-500 mt-2 text-sm">כניסה למערכת</p>
@@ -76,7 +86,8 @@ function LoginForm() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          {/* Card — frosted glass on desktop, clean white on mobile */}
+          <div className="bg-white lg:bg-white/88 lg:backdrop-blur-sm rounded-2xl shadow-sm lg:shadow-xl border border-gray-100 lg:border-white/50 p-6">
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
