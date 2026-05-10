@@ -67,24 +67,33 @@ export function ItemImages({ itemDbId, quoteId, userId }: Props) {
     setError(null)
 
     const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
-    const storagePath = `quote-images/${userId}/${quoteId}/${itemDbId}/${filename}`
+    // Path must start with {userId}/ so storage RLS (foldername[1] = auth.uid()) passes
+    const storagePath = `${userId}/${quoteId}/${itemDbId}/${filename}`
 
     const { error: uploadErr } = await supabase.storage
       .from('quote-images')
       .upload(storagePath, new File([blob], filename, { type: 'image/jpeg' }))
 
     if (uploadErr) {
-      setError(`שגיאת העלאה: ${uploadErr.message}`)
+      setError('העלאת הקובץ נכשלה. ודא שאתה מחובר ושההצעה שייכת לך.')
       setUploading(false)
       return
     }
 
-    await supabase.from('item_images').insert({
+    const { error: dbErr } = await supabase.from('item_images').insert({
       item_id: itemDbId,
       storage_path: storagePath,
       include_in_pdf: images.length < 2,
       display_order: images.length + 1,
     })
+
+    if (dbErr) {
+      // Remove the orphaned storage file before reporting the error
+      await supabase.storage.from('quote-images').remove([storagePath])
+      setError('שמירת התמונה נכשלה. ודא שאתה מחובר ושההצעה שייכת לך.')
+      setUploading(false)
+      return
+    }
 
     await loadImages()
     setUploading(false)
