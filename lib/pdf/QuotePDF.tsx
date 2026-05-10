@@ -664,7 +664,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               {creator.signature_url ? (
                 <Image src={creator.signature_url} style={s.signatureImage} />
               ) : null}
-              <Text style={s.signatureGreeting}>בברכה,</Text>
+              <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
               <Text style={s.signatureName}>
                 {creator.full_name}
                 {creator.job_title ? ` - ${creator.job_title}` : ''}

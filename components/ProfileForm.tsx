@@ -249,7 +249,7 @@ export function ProfileForm({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={signatureUrl} alt="חתימה" className="h-12 object-contain mb-2" />
           )}
-          <p className="text-sm text-gray-600">בברכה,</p>
+          <p className="text-sm text-gray-600" dir="rtl">{'בברכה,‏'}</p>
           <p className="text-sm font-semibold text-gray-900">
             {fullName || '(שם מלא)'}
             {jobTitle ? ` - ${jobTitle}` : ''}

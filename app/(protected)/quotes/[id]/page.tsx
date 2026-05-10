@@ -262,7 +262,7 @@ export default async function QuoteViewPage({ params }: Props) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={creatorSignatureUrl} alt="חתימה" className="h-12 object-contain mb-2" />
             )}
-            <p className="text-xs text-gray-400">בברכה,</p>
+            <p className="text-xs text-gray-400" dir="rtl">{'בברכה,‏'}</p>
             <p className="text-sm font-semibold text-gray-900">
               {creatorName}{creatorJobTitle ? ` - ${creatorJobTitle}` : ''}
             </p>
