@@ -42,6 +42,9 @@ const fmtDate = (s: string | null | undefined) => {
   return `${d || ''}.${m || ''}.${y || ''}`
 }
 
+const fixRtlText = (text: string) =>
+  text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface PdfItemImage {
   storage_path: string
@@ -646,13 +649,13 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               {quote.payment_terms ? (
                 <View style={s.termRow}>
                   <Text style={s.termLabel}>תנאי תשלום</Text>
-                  <Text style={s.termValue}>{quote.payment_terms}</Text>
+                  <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
                 </View>
               ) : null}
               {quote.exclusions ? (
                 <View style={s.termRow}>
                   <Text style={s.termLabel}>החרגות / הערות</Text>
-                  <Text style={s.termValue}>{quote.exclusions}</Text>
+                  <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
                 </View>
               ) : null}
             </View>

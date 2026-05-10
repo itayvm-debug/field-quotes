@@ -9,6 +9,9 @@ import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COL
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
 import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
 
+const fixRtlText = (text: string) =>
+  text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
+
 interface Props {
   params: Promise<{ id: string }>
 }
@@ -243,13 +246,13 @@ export default async function QuoteViewPage({ params }: Props) {
             {quote.payment_terms && (
               <div>
                 <p className="text-xs text-gray-400 mb-1">תנאי תשלום</p>
-                <p>{quote.payment_terms}</p>
+                <p dir="rtl">{fixRtlText(quote.payment_terms)}</p>
               </div>
             )}
             {quote.exclusions && (
               <div>
                 <p className="text-xs text-gray-400 mb-1">החרגות והערות</p>
-                <p className="whitespace-pre-line">{quote.exclusions}</p>
+                <p className="whitespace-pre-line" dir="rtl">{fixRtlText(quote.exclusions)}</p>
               </div>
             )}
           </section>
