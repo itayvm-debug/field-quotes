@@ -74,7 +74,6 @@ export interface PdfQuote {
   payment_terms: string
   exclusions: string
   vat_percentage: number
-  has_approval?: boolean
 }
 
 export interface PdfCompany {
@@ -419,22 +418,6 @@ const s = StyleSheet.create({
     marginTop: 1,
   },
 
-  // ── Approval note ────────────────────────────────────────────────────────────
-  approvalNote: {
-    borderTopWidth: 1,
-    borderTopColor: GRAY_MID,
-    paddingTop: 8,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  approvalNoteText: {
-    fontSize: 8,
-    color: GRAY_TEXT,
-    textAlign: 'right',
-  },
-
   // ── Draft watermark ──────────────────────────────────────────────────────────
   watermarkContainer: {
     position: 'absolute',
@@ -676,12 +659,6 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
             </View>
           )}
 
-          {/* ── Approval note ────────────────────────────────────────── */}
-          {quote.has_approval && (
-            <View style={s.approvalNote}>
-              <Text style={s.approvalNoteText}>✓ קיים אישור הצעה שמור במערכת</Text>
-            </View>
-          )}
         </View>
 
         {/* ── Draft watermark (over body, under footer) ───────────────── */}

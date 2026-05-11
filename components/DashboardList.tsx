@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { calcSubtotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
 import {
@@ -31,14 +31,44 @@ const PAYMENT_FILTERS: Array<{ value: PaymentStatus | ''; label: string }> = [
 
 export function DashboardList({ quotes, statusFilter, userRole, userId, companyName, creatorProfiles = [], approvalQuoteIds }: Props) {
   const isAdmin = userRole === 'admin'
-  const profileMap = new Map(creatorProfiles.map((p) => [p.id, p]))
+  const canSeeAllUsers = userRole === 'admin' || userRole === 'manager' || userRole === 'viewer'
+  const profileMap = useMemo(
+    () => new Map(creatorProfiles.map((p) => [p.id, p])),
+    [creatorProfiles]
+  )
   const [search, setSearch] = useState('')
   const [paymentFilter, setPaymentFilter] = useState<PaymentStatus | ''>('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [userFilter, setUserFilter] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const hasAdvancedFilters = paymentFilter !== '' || fromDate !== '' || toDate !== ''
+  const usersWithQuotes = useMemo(() => {
+    if (!canSeeAllUsers) return []
+    const seen = new Set<string>()
+    const result: Array<{ id: string; name: string }> = []
+    for (const q of quotes) {
+      if (q.user_id && !seen.has(q.user_id)) {
+        seen.add(q.user_id)
+        const p = profileMap.get(q.user_id)
+        result.push({
+          id: q.user_id,
+          name: p?.full_name || p?.job_title || `משתמש (${String(q.user_id).slice(0, 6)})`,
+        })
+      }
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name, 'he'))
+  }, [quotes, profileMap, canSeeAllUsers])
+
+  const hasAdvancedFilters = paymentFilter !== '' || fromDate !== '' || toDate !== '' || userFilter !== ''
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const clearAdvanced = useCallback(() => {
+    setPaymentFilter('')
+    setFromDate('')
+    setToDate('')
+    setUserFilter('')
+  }, [])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -55,11 +85,12 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
       if (paymentFilter) {
         if ((quote.payment_status ?? 'unpaid') !== paymentFilter) return false
       }
+      if (userFilter && quote.user_id !== userFilter) return false
       if (fromDate && quote.quote_date < fromDate) return false
       if (toDate && quote.quote_date > toDate) return false
       return true
     })
-  }, [quotes, search, paymentFilter, fromDate, toDate])
+  }, [quotes, search, paymentFilter, fromDate, toDate, userFilter])
 
   const STATUS_LABEL_MAP: Record<string, string> = { ...STATUS_LABELS, '': 'הכל' }
   const statusLabel = STATUS_LABEL_MAP[statusFilter] ?? 'הכל'
@@ -123,6 +154,40 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
               </div>
             </div>
 
+            {/* User filter — admin/manager/viewer only, when multiple users exist */}
+            {canSeeAllUsers && usersWithQuotes.length > 1 && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1.5">יוצר ההצעה</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setUserFilter('')}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                      userFilter === ''
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-gray-100 text-gray-600 active:bg-gray-200'
+                    }`}
+                  >
+                    הכל
+                  </button>
+                  {usersWithQuotes.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setUserFilter(u.id)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                        userFilter === u.id
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-gray-100 text-gray-600 active:bg-gray-200'
+                      }`}
+                    >
+                      {u.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Date range */}
             <div className="flex gap-2">
               <div className="flex-1">
@@ -148,7 +213,7 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
             {hasAdvancedFilters && (
               <button
                 type="button"
-                onClick={() => { setPaymentFilter(''); setFromDate(''); setToDate('') }}
+                onClick={clearAdvanced}
                 className="text-xs text-orange-600 font-medium"
               >
                 נקה סינון

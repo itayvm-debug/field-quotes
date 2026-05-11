@@ -32,17 +32,30 @@ export default async function PdfViewPage({ params }: Props) {
 
       {/* ── Top bar ──────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
-        {/* Back */}
-        <Link
-          href={`/quotes/${id}`}
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 active:text-gray-900 shrink-0"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-            strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-          חזרה להצעה
-        </Link>
+        {/* Back navigation */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href={`/quotes/${id}`}
+            className="flex items-center gap-1 text-sm font-medium text-gray-600 active:text-gray-900 whitespace-nowrap"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            חזרה להצעה
+          </Link>
+          <Link
+            href="/dashboard"
+            className="flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-500 active:bg-gray-50"
+            title="דשבורד"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </Link>
+        </div>
 
         {/* Title */}
         <span className="text-sm font-semibold text-gray-900 truncate flex-1 text-center">
@@ -51,6 +64,14 @@ export default async function PdfViewPage({ params }: Props) {
 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-medium active:bg-gray-50 whitespace-nowrap"
+          >
+            פתח PDF
+          </a>
           <a
             href={pdfUrl}
             download

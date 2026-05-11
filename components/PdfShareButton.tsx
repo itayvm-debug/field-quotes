@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { shareQuotePdf, triggerDownload } from '@/lib/share/shareQuotePdf'
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function PdfShareButton({ quoteId, quoteNumber, companyName }: Props) {
+  const router = useRouter()
   const [state, setState] = useState<'idle' | 'loading'>('idle')
 
   const handleShare = async () => {
@@ -18,7 +20,7 @@ export function PdfShareButton({ quoteId, quoteNumber, companyName }: Props) {
     if (result.status === 'fallback') {
       triggerDownload(result.blob, result.filename)
     } else if (result.status === 'error') {
-      window.open(`/api/quotes/${quoteId}/pdf`, '_blank')
+      router.push(`/quotes/${quoteId}/pdf-view`)
     }
     setState('idle')
   }

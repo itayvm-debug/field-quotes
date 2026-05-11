@@ -90,8 +90,7 @@ export function QuoteViewActions({
     if (result.status === 'fallback') {
       setShareState('unsupported')
     } else if (result.status === 'error') {
-      // Fetch itself failed — open PDF directly in new tab as last resort
-      window.open(`/api/quotes/${quoteId}/pdf`, '_blank')
+      router.push(`/quotes/${quoteId}/pdf-view`)
       setShareState('idle')
     } else {
       setShareState('idle')

@@ -311,7 +311,7 @@ export function QuoteActionsPanel({
     if (result.status === 'fallback') {
       setShareState('unsupported')
     } else if (result.status === 'error') {
-      window.open(`/api/quotes/${quoteId}/pdf`, '_blank')
+      router.push(`/quotes/${quoteId}/pdf-view`)
       setShareState('idle')
     } else {
       setShareState('idle')

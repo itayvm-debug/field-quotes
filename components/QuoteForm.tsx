@@ -292,9 +292,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
             </button>
             {mode === 'edit' && savedId && (
               <a
-                href={`/api/quotes/${savedId}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={`/quotes/${savedId}/pdf-view`}
                 className="text-gray-400 text-xs font-medium px-2 py-1.5 border border-gray-200 rounded-lg active:bg-gray-50"
               >
                 צפה ב-PDF
