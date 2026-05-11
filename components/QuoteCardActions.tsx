@@ -40,7 +40,7 @@ interface Props {
 }
 
 export function QuoteCardActions({
-  quoteId, quoteNumber, totalFormatted, totalAmount,
+  quoteId, quoteNumber, clientName, totalFormatted, totalAmount,
   currentStatus, userRole, userId, companyName,
   initialPaymentStatus, initialPaidAmount, initialStatusNote = '',
 }: Props) {
@@ -286,7 +286,7 @@ export function QuoteCardActions({
     e.stopPropagation()
     e.preventDefault()
     setShareState('loading')
-    const result = await shareQuotePdf(quoteId, quoteNumber, companyName)
+    const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
     if (result.status === 'fallback') {
       setShareState('unsupported')
       setTimeout(() => setShareState('idle'), 3500)

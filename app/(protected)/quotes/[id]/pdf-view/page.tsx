@@ -89,6 +89,7 @@ export default async function PdfViewPage({ params }: Props) {
             quoteId={id}
             quoteNumber={quote.quote_number}
             companyName={companyName}
+            clientName={quote.client_name}
           />
         </div>
       </div>

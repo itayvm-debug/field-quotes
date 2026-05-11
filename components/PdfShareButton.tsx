@@ -2,23 +2,25 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { shareQuotePdf, triggerDownload } from '@/lib/share/shareQuotePdf'
+import { shareQuotePdf, triggerApiDownload } from '@/lib/share/shareQuotePdf'
 
 interface Props {
   quoteId: string
   quoteNumber: string | null
   companyName: string
+  clientName?: string | null
 }
 
-export function PdfShareButton({ quoteId, quoteNumber, companyName }: Props) {
+export function PdfShareButton({ quoteId, quoteNumber, companyName, clientName }: Props) {
   const router = useRouter()
   const [state, setState] = useState<'idle' | 'loading'>('idle')
 
   const handleShare = async () => {
     setState('loading')
-    const result = await shareQuotePdf(quoteId, quoteNumber, companyName)
+    const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
     if (result.status === 'fallback') {
-      triggerDownload(result.blob, result.filename)
+      // Use direct API URL — avoids blob: URLs that can leak into the iOS share sheet
+      triggerApiDownload(quoteId, result.filename)
     } else if (result.status === 'error') {
       router.push(`/quotes/${quoteId}/pdf-view`)
     }

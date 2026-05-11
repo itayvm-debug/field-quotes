@@ -86,7 +86,7 @@ export function QuoteViewActions({
 
   const handleSharePdf = async () => {
     setShareState('loading')
-    const result = await shareQuotePdf(quoteId, quoteNumber, companyName)
+    const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
     if (result.status === 'fallback') {
       setShareState('unsupported')
     } else if (result.status === 'error') {
