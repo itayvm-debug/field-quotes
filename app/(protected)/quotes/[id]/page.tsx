@@ -189,7 +189,7 @@ export default async function QuoteViewPage({ params }: Props) {
                     {item.images.map((img) =>
                       img.signedUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img key={img.id} src={img.signedUrl} alt={img.caption || ''}
+                        <img key={img.id} src={img.signedUrl} alt={img.caption || ''} loading="lazy"
                           className="w-full aspect-square object-cover rounded-xl border border-gray-100" />
                       ) : null
                     )}
@@ -259,7 +259,7 @@ export default async function QuoteViewPage({ params }: Props) {
         )}
 
         {/* Creator signature */}
-        {creatorName && (
+        {creatorName && quoteStatus !== 'draft' && (
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             {creatorSignatureUrl && (
               // eslint-disable-next-line @next/next/no-img-element

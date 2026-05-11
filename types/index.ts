@@ -111,6 +111,7 @@ export const PREDEFINED_UNITS = [
 ] as const
 
 export const PAYMENT_TERMS_OPTIONS = [
+  'תשלום מראש',
   'תשלום מייד בסיום העבודה',
   'שוטף + 15',
   'שוטף + 30',

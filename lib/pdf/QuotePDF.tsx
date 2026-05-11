@@ -662,7 +662,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           )}
 
           {/* ── Signature ───────────────────────────────────────────── */}
-          {creator && (
+          {creator && quote.status !== 'draft' && (
             <View style={s.signatureSection}>
               {creator.signature_url ? (
                 <Image src={creator.signature_url} style={s.signatureImage} />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { shareQuotePdf } from '@/lib/share/shareQuotePdf'
@@ -65,6 +65,11 @@ export function QuoteCardActions({
   const [overpayChoice, setOverpayChoice] = useState<'yes' | 'no' | null>(null)
   const [overpaymentNote, setOverpaymentNote] = useState('')
 
+  // Approval upload state
+  const [approvalFile, setApprovalFile] = useState<File | null>(null)
+  const [approvalNote, setApprovalNote] = useState('')
+  const approvalInputRef = useRef<HTMLInputElement>(null)
+
   const isArchived = currentStatus === 'archived'
   const isAdmin = userRole === 'admin'
   const canEdit = userRole !== 'viewer'
@@ -93,6 +98,8 @@ export function QuoteCardActions({
     setSaveError('')
     resetOverpayDialog()
     setOverpaymentNote('')
+    setApprovalFile(null)
+    setApprovalNote('')
     setStep('update-status')
   }
 
@@ -186,6 +193,14 @@ export function QuoteCardActions({
         setSaving(false)
         return
       }
+      if (approvalFile) {
+        const fd = new FormData()
+        fd.append('file', approvalFile)
+        if (approvalNote.trim()) fd.append('note', approvalNote.trim())
+        await fetch(`/api/quotes/${quoteId}/approvals`, { method: 'POST', body: fd })
+        setApprovalFile(null)
+        setApprovalNote('')
+      }
       setSaving(false)
       setStep('idle')
       router.refresh()
@@ -224,6 +239,14 @@ export function QuoteCardActions({
       setSaveError(`שגיאה: ${dbErr.message}`)
       setSaving(false)
       return
+    }
+    if (approvalFile) {
+      const fd = new FormData()
+      fd.append('file', approvalFile)
+      if (approvalNote.trim()) fd.append('note', approvalNote.trim())
+      await fetch(`/api/quotes/${quoteId}/approvals`, { method: 'POST', body: fd })
+      setApprovalFile(null)
+      setApprovalNote('')
     }
     setSaving(false)
     setStep('idle')
@@ -418,6 +441,46 @@ export function QuoteCardActions({
           </div>
         )}
 
+        {/* Approval file upload */}
+        {selectedStatus === 'accepted' && (
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 font-medium mb-1.5">אסמכתא אישור (אופציונלי)</p>
+            <input
+              ref={approvalInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) { setApprovalFile(f); e.target.value = '' }
+              }}
+            />
+            {approvalFile ? (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                <span className="text-xs text-green-700 flex-1 truncate">{approvalFile.name}</span>
+                <button type="button"
+                  onClick={(e) => { e.stopPropagation(); setApprovalFile(null) }}
+                  className="text-xs text-gray-400 shrink-0">✕</button>
+              </div>
+            ) : (
+              <button type="button"
+                onClick={(e) => { e.stopPropagation(); approvalInputRef.current?.click() }}
+                className="w-full py-2 border border-dashed border-gray-300 rounded-xl text-xs text-gray-500 active:bg-gray-50">
+                + צרף קובץ
+              </button>
+            )}
+            {approvalFile && (
+              <input
+                type="text"
+                value={approvalNote}
+                onChange={(e) => { e.stopPropagation(); setApprovalNote(e.target.value) }}
+                placeholder="הערה לאסמכתא (אופציונלי)"
+                className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+              />
+            )}
+          </div>
+        )}
+
         {saveError && <p className="text-xs text-red-500 mb-2">{saveError}</p>}
 
         <div className="flex gap-2">
@@ -483,7 +546,7 @@ export function QuoteCardActions({
   return (
     <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-50">
       <div className="flex items-center gap-3">
-        <a href={`/api/quotes/${quoteId}/pdf`} target="_blank" rel="noopener noreferrer"
+        <a href={`/quotes/${quoteId}/pdf-view`}
           onClick={(e) => e.stopPropagation()}
           className="text-xs text-gray-400 font-medium active:text-orange-500 transition-colors">
           PDF
