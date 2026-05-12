@@ -48,7 +48,7 @@ export function QuoteCardActions({
 
   const [step, setStep] = useState<'idle' | 'confirm-archive' | 'confirm-delete' | 'update-status'>('idle')
   const [working, setWorking] = useState(false)
-  const [shareState, setShareState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [shareState, setShareState] = useState<'idle' | 'loading' | 'error' | 'unsupported'>('idle')
 
   // Status update state
   const [selectedStatus, setSelectedStatus] = useState<QuoteStatus>(currentStatus as QuoteStatus)
@@ -288,8 +288,8 @@ export function QuoteCardActions({
     setShareState('loading')
     const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
     if (result.status === 'fallback') {
-      // Web Share with files not supported — open pdf-view where the user can download/share
-      router.push(`/quotes/${quoteId}/pdf-view`)
+      setShareState('unsupported')
+      setTimeout(() => setShareState('idle'), 3500)
     } else if (result.status === 'error') {
       setShareState('error')
       setTimeout(() => setShareState('idle'), 2500)
@@ -544,6 +544,12 @@ export function QuoteCardActions({
 
   // ── Idle strip ────────────────────────────────────────────────────────────
   return (
+    <div>
+      {shareState === 'unsupported' && (
+        <div className="px-4 py-1.5 text-xs text-amber-700 text-center bg-amber-50 border-t border-amber-100">
+          שיתוף ישיר אינו נתמך. לחץ על PDF לפתיחה ושיתוף.
+        </div>
+      )}
     <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-50">
       <div className="flex items-center gap-3">
         <a href={`/quotes/${quoteId}/pdf-view`}
@@ -551,7 +557,7 @@ export function QuoteCardActions({
           className="text-xs text-gray-400 font-medium active:text-orange-500 transition-colors">
           PDF
         </a>
-        <button type="button" onClick={handleSharePdf} disabled={shareState === 'loading'}
+        <button type="button" onClick={handleSharePdf} disabled={shareState === 'loading' || shareState === 'unsupported'}
           title={shareState === 'error' ? 'שגיאה בהפקת PDF' : 'שתף PDF'}
           className={`transition-colors disabled:opacity-40 ${shareState === 'error' ? 'text-red-400' : 'text-gray-400 active:text-orange-500'}`}
           aria-label="שתף PDF">
@@ -601,6 +607,7 @@ export function QuoteCardActions({
           </>
         ) : null}
       </div>
+    </div>
     </div>
   )
 }
