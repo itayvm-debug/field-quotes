@@ -4,16 +4,36 @@ export type ShareResult =
   | { status: 'fallback'; filename: string }
   | { status: 'error'; message: string }
 
+// Strips characters forbidden in filenames across platforms/WhatsApp.
+// Keeps Hebrew, Latin, digits, spaces, and hyphens intact.
+function sanitizePart(s: string): string {
+  return s.replace(/[/\\:*?"<>|]/g, '').trim().slice(0, 60)
+}
+
+export function buildPdfFilename(
+  quoteNumber: string | null | undefined,
+  clientName?: string | null,
+): string {
+  const parts: string[] = ['הצעת מחיר']
+  if (clientName) {
+    const clean = sanitizePart(clientName)
+    if (clean) parts.push(clean)
+  }
+  if (quoteNumber) {
+    const clean = sanitizePart(quoteNumber)
+    if (clean) parts.push(clean)
+  }
+  return parts.join(' - ') + '.pdf'
+}
+
 async function fetchPdfBlob(
   quoteId: string,
-  quoteNumber: string | null,
-): Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; message: string }> {
+): Promise<{ ok: true; blob: Blob } | { ok: false; message: string }> {
   try {
     const res = await fetch(`/api/quotes/${quoteId}/pdf`)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const blob = await res.blob()
-    const filename = `quote-${quoteNumber ?? quoteId.slice(0, 8)}.pdf`
-    return { ok: true, blob, filename }
+    return { ok: true, blob }
   } catch {
     return { ok: false, message: 'שגיאה בהפקת PDF' }
   }
@@ -25,10 +45,11 @@ export async function shareQuotePdf(
   companyName: string,
   clientName?: string | null,
 ): Promise<ShareResult> {
-  const fetched = await fetchPdfBlob(quoteId, quoteNumber)
+  const fetched = await fetchPdfBlob(quoteId)
   if (!fetched.ok) return { status: 'error', message: fetched.message }
 
-  const { blob, filename } = fetched
+  const { blob } = fetched
+  const filename = buildPdfFilename(quoteNumber, clientName)
 
   const title = 'הצעת מחיר'
   const textLines: string[] = []
