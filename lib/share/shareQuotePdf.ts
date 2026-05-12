@@ -1,11 +1,9 @@
 export type ShareResult =
   | { status: 'shared' }
   | { status: 'cancelled' }
-  | { status: 'fallback'; filename: string }
+  | { status: 'no-support' }
   | { status: 'error'; message: string }
 
-// Strips characters forbidden in filenames across platforms/WhatsApp.
-// Keeps Hebrew, Latin, digits, spaces, and hyphens intact.
 function sanitizePart(s: string): string {
   return s.replace(/[/\\:*?"<>|]/g, '').trim().slice(0, 60)
 }
@@ -45,11 +43,16 @@ export async function shareQuotePdf(
   companyName: string,
   clientName?: string | null,
 ): Promise<ShareResult> {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    return { status: 'no-support' }
+  }
+
   const fetched = await fetchPdfBlob(quoteId)
   if (!fetched.ok) return { status: 'error', message: fetched.message }
 
   const { blob } = fetched
   const filename = buildPdfFilename(quoteNumber, clientName)
+  const file = new File([blob], filename, { type: 'application/pdf' })
 
   const title = 'הצעת מחיר'
   const textLines: string[] = []
@@ -61,33 +64,19 @@ export async function shareQuotePdf(
   )
   const text = textLines.join('\n')
 
-  const file = new File([blob], filename, { type: 'application/pdf' })
-
-  // Use the actual file for canShare — a 0-byte dummy returns false on iOS
-  // even when the real PDF can be shared.
-  const canShareFiles =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function' &&
-    navigator.canShare({ files: [file] })
-
-  if (canShareFiles) {
-    try {
-      await navigator.share({ title, text, files: [file] })
-      return { status: 'shared' }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return { status: 'cancelled' }
-      }
-      return { status: 'fallback', filename }
+  try {
+    await navigator.share({ title, text, files: [file] })
+    return { status: 'shared' }
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { status: 'cancelled' }
     }
+    console.error('[shareQuotePdf]', err)
+    return { status: 'error', message: err instanceof Error ? err.message : String(err) }
   }
-
-  return { status: 'fallback', filename }
 }
 
-// Download via direct API URL — avoids creating blob: URLs that iOS/PWA
-// would navigate to, exposing the blob URL to the system share sheet.
+// Download via direct API URL — never create blob: URLs
 export function triggerApiDownload(quoteId: string, filename: string): void {
   const a = document.createElement('a')
   a.href = `/api/quotes/${quoteId}/pdf`

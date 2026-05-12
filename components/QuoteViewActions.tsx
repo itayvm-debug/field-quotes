@@ -87,13 +87,10 @@ export function QuoteViewActions({
   const handleSharePdf = async () => {
     setShareState('loading')
     const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
-    if (result.status === 'fallback') {
-      setShareState('unsupported')
-    } else if (result.status === 'error') {
-      router.push(`/quotes/${quoteId}/pdf-view`)
+    if (result.status === 'shared' || result.status === 'cancelled') {
       setShareState('idle')
     } else {
-      setShareState('idle')
+      setShareState('unsupported')
     }
   }
 
@@ -129,8 +126,8 @@ export function QuoteViewActions({
         {shareState === 'unsupported' ? (
           <div className="space-y-2">
             <p className="text-xs text-gray-500 text-center leading-relaxed">
-              שיתוף קובץ PDF נתמך בעיקר בטלפון.
-              פתח מהטלפון כדי לשתף ישירות.
+              שיתוף ישיר אינו נתמך במכשיר זה.
+              ניתן להוריד את ה-PDF ולשלוח ידנית.
             </p>
             <button
               type="button"

@@ -287,12 +287,12 @@ export function QuoteCardActions({
     e.preventDefault()
     setShareState('loading')
     const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
-    if (result.status === 'fallback') {
+    if (result.status === 'no-support') {
       setShareState('unsupported')
-      setTimeout(() => setShareState('idle'), 3500)
+      setTimeout(() => setShareState('idle'), 4000)
     } else if (result.status === 'error') {
       setShareState('error')
-      setTimeout(() => setShareState('idle'), 2500)
+      setTimeout(() => setShareState('idle'), 3000)
     } else {
       setShareState('idle')
     }
@@ -545,9 +545,9 @@ export function QuoteCardActions({
   // ── Idle strip ────────────────────────────────────────────────────────────
   return (
     <div>
-      {shareState === 'unsupported' && (
+      {(shareState === 'unsupported' || shareState === 'error') && (
         <div className="px-4 py-1.5 text-xs text-amber-700 text-center bg-amber-50 border-t border-amber-100">
-          שיתוף ישיר אינו נתמך. לחץ על PDF לפתיחה ושיתוף.
+          {shareState === 'error' ? 'שגיאה בהפקת PDF. לחץ על PDF לפתיחה.' : 'שיתוף ישיר אינו נתמך. לחץ על PDF לפתיחה ושיתוף.'}
         </div>
       )}
     <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-50">
@@ -557,9 +557,10 @@ export function QuoteCardActions({
           className="text-xs text-gray-400 font-medium active:text-orange-500 transition-colors">
           PDF
         </a>
-        <button type="button" onClick={handleSharePdf} disabled={shareState === 'loading' || shareState === 'unsupported'}
-          title={shareState === 'error' ? 'שגיאה בהפקת PDF' : 'שתף PDF'}
-          className={`transition-colors disabled:opacity-40 ${shareState === 'error' ? 'text-red-400' : 'text-gray-400 active:text-orange-500'}`}
+        <button type="button" onClick={handleSharePdf}
+          disabled={shareState === 'loading' || shareState === 'unsupported' || shareState === 'error'}
+          title="שתף PDF"
+          className="transition-colors disabled:opacity-40 text-gray-400 active:text-orange-500"
           aria-label="שתף PDF">
           {shareState === 'loading' ? (
             <span className="text-xs text-gray-400">...</span>
