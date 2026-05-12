@@ -30,32 +30,29 @@ export async function shareQuotePdf(
 
   const { blob, filename } = fetched
 
-  const titleText = quoteNumber
-    ? `הצעת מחיר מספר ${quoteNumber}`
-    : 'הצעת מחיר'
-
-  const textLines: string[] = [
-    companyName ? `הצעת מחיר מטעם ${companyName}` : 'הצעת מחיר',
-  ]
-  if (quoteNumber) textLines.push(`מספר הצעה: ${quoteNumber}`)
+  const title = 'הצעת מחיר'
+  const textLines: string[] = []
   if (clientName) textLines.push(`לכבוד: ${clientName}`)
-  const shareText = textLines.join('\n')
+  textLines.push(
+    companyName
+      ? `מצורפת הצעת מחיר מטעם ${companyName}`
+      : 'מצורפת הצעת מחיר'
+  )
+  const text = textLines.join('\n')
 
   const file = new File([blob], filename, { type: 'application/pdf' })
 
-  // Use a minimal dummy file for the capability check so the actual share
-  // file object is not touched until navigator.share() — avoids any
-  // internal browser URL association that could leak into the share sheet.
-  const dummyFile = new File([''], filename, { type: 'application/pdf' })
+  // Use the actual file for canShare — a 0-byte dummy returns false on iOS
+  // even when the real PDF can be shared.
   const canShareFiles =
     typeof navigator !== 'undefined' &&
     typeof navigator.share === 'function' &&
     typeof navigator.canShare === 'function' &&
-    navigator.canShare({ files: [dummyFile] })
+    navigator.canShare({ files: [file] })
 
   if (canShareFiles) {
     try {
-      await navigator.share({ title: titleText, text: shareText, files: [file] })
+      await navigator.share({ title, text, files: [file] })
       return { status: 'shared' }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {

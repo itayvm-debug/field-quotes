@@ -48,7 +48,7 @@ export function QuoteCardActions({
 
   const [step, setStep] = useState<'idle' | 'confirm-archive' | 'confirm-delete' | 'update-status'>('idle')
   const [working, setWorking] = useState(false)
-  const [shareState, setShareState] = useState<'idle' | 'loading' | 'unsupported' | 'error'>('idle')
+  const [shareState, setShareState] = useState<'idle' | 'loading' | 'error'>('idle')
 
   // Status update state
   const [selectedStatus, setSelectedStatus] = useState<QuoteStatus>(currentStatus as QuoteStatus)
@@ -288,8 +288,8 @@ export function QuoteCardActions({
     setShareState('loading')
     const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
     if (result.status === 'fallback') {
-      setShareState('unsupported')
-      setTimeout(() => setShareState('idle'), 3500)
+      // Web Share with files not supported — open pdf-view where the user can download/share
+      router.push(`/quotes/${quoteId}/pdf-view`)
     } else if (result.status === 'error') {
       setShareState('error')
       setTimeout(() => setShareState('idle'), 2500)
@@ -551,25 +551,21 @@ export function QuoteCardActions({
           className="text-xs text-gray-400 font-medium active:text-orange-500 transition-colors">
           PDF
         </a>
-        {shareState === 'unsupported' ? (
-          <span className="text-xs text-gray-400 max-w-[120px] leading-tight">שיתוף נתמך בטלפון בלבד</span>
-        ) : (
-          <button type="button" onClick={handleSharePdf} disabled={shareState === 'loading'}
-            title={shareState === 'error' ? 'שגיאה בהפקת PDF' : 'שתף PDF'}
-            className={`transition-colors disabled:opacity-40 ${shareState === 'error' ? 'text-red-400' : 'text-gray-400 active:text-orange-500'}`}
-            aria-label="שתף PDF">
-            {shareState === 'loading' ? (
-              <span className="text-xs text-gray-400">...</span>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                <polyline points="16 6 12 2 8 6"/>
-                <line x1="12" y1="2" x2="12" y2="15"/>
-              </svg>
-            )}
-          </button>
-        )}
+        <button type="button" onClick={handleSharePdf} disabled={shareState === 'loading'}
+          title={shareState === 'error' ? 'שגיאה בהפקת PDF' : 'שתף PDF'}
+          className={`transition-colors disabled:opacity-40 ${shareState === 'error' ? 'text-red-400' : 'text-gray-400 active:text-orange-500'}`}
+          aria-label="שתף PDF">
+          {shareState === 'loading' ? (
+            <span className="text-xs text-gray-400">...</span>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+          )}
+        </button>
       </div>
 
       <div className="flex items-center gap-2">
