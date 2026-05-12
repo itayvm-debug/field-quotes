@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { shareQuotePdf } from '@/lib/share/shareQuotePdf'
+import { prepareQuotePdfFile, sharePreparedFile, type PreparedShare } from '@/lib/share/shareQuotePdf'
 import {
   STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
   type QuoteStatus, type PaymentStatus,
@@ -48,7 +48,8 @@ export function QuoteCardActions({
 
   const [step, setStep] = useState<'idle' | 'confirm-archive' | 'confirm-delete' | 'update-status'>('idle')
   const [working, setWorking] = useState(false)
-  const [shareState, setShareState] = useState<'idle' | 'loading' | 'error' | 'unsupported'>('idle')
+  const [shareState, setShareState] = useState<'idle' | 'preparing' | 'ready' | 'sharing' | 'error' | 'no-support'>('idle')
+  const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null)
 
   // Status update state
   const [selectedStatus, setSelectedStatus] = useState<QuoteStatus>(currentStatus as QuoteStatus)
@@ -282,20 +283,42 @@ export function QuoteCardActions({
     router.refresh()
   }
 
-  const handleSharePdf = async (e: React.MouseEvent) => {
+  // Tap 1 — fetch PDF. No navigator.share here.
+  const handlePrepareShare = async (e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
-    setShareState('loading')
-    const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
-    if (result.status === 'no-support') {
-      setShareState('unsupported')
-      setTimeout(() => setShareState('idle'), 4000)
-    } else if (result.status === 'error') {
+    setShareState('preparing')
+    try {
+      const p = await prepareQuotePdfFile(quoteId, quoteNumber, clientName, companyName)
+      setPreparedShare(p)
+      setShareState('ready')
+    } catch {
       setShareState('error')
-      setTimeout(() => setShareState('idle'), 3000)
-    } else {
-      setShareState('idle')
+      setTimeout(() => setShareState('idle'), 3500)
     }
+  }
+
+  // Tap 2 — must call navigator.share synchronously (no awaits before it).
+  const handleShareNow = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (!preparedShare) return
+    setShareState('sharing')
+    sharePreparedFile(preparedShare).then((result) => {
+      if (result.status === 'cancelled') {
+        setShareState('ready') // keep file ready so user can try a different app
+      } else if (result.status === 'no-support') {
+        setShareState('no-support')
+        setPreparedShare(null)
+        setTimeout(() => setShareState('idle'), 4000)
+      } else if (result.status === 'error') {
+        setShareState('error')
+        setTimeout(() => { setShareState('idle'); setPreparedShare(null) }, 3500)
+      } else {
+        setShareState('idle')
+        setPreparedShare(null)
+      }
+    })
   }
 
   // ── Update status panel ───────────────────────────────────────────────────
@@ -545,9 +568,35 @@ export function QuoteCardActions({
   // ── Idle strip ────────────────────────────────────────────────────────────
   return (
     <div>
-      {(shareState === 'unsupported' || shareState === 'error') && (
+      {/* "File ready" strip — second tap triggers the actual share */}
+      {shareState === 'ready' && preparedShare && (
+        <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-center justify-between gap-2">
+          <span className="text-xs text-blue-700 truncate">הקובץ מוכן לשיתוף</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleShareNow}
+              className="text-xs font-semibold text-white bg-blue-600 rounded-lg px-3 py-1.5 active:bg-blue-700 whitespace-nowrap"
+            >
+              שתף עכשיו
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShareState('idle'); setPreparedShare(null) }}
+              className="text-gray-400 text-sm leading-none"
+              aria-label="סגור"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      {(shareState === 'error' || shareState === 'no-support') && (
         <div className="px-4 py-1.5 text-xs text-amber-700 text-center bg-amber-50 border-t border-amber-100">
-          {shareState === 'error' ? 'שגיאה בהפקת PDF. לחץ על PDF לפתיחה.' : 'שיתוף ישיר אינו נתמך. לחץ על PDF לפתיחה ושיתוף.'}
+          {shareState === 'error'
+            ? 'שגיאה בהפקת PDF. לחץ על PDF לפתיחה.'
+            : 'שיתוף ישיר אינו נתמך. לחץ על PDF לפתיחה ושיתוף.'
+          }
         </div>
       )}
     <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-50">
@@ -557,12 +606,13 @@ export function QuoteCardActions({
           className="text-xs text-gray-400 font-medium active:text-orange-500 transition-colors">
           PDF
         </a>
-        <button type="button" onClick={handleSharePdf}
-          disabled={shareState === 'loading' || shareState === 'unsupported' || shareState === 'error'}
+        <button type="button"
+          onClick={handlePrepareShare}
+          disabled={shareState !== 'idle'}
           title="שתף PDF"
           className="transition-colors disabled:opacity-40 text-gray-400 active:text-orange-500"
           aria-label="שתף PDF">
-          {shareState === 'loading' ? (
+          {(shareState === 'preparing' || shareState === 'sharing') ? (
             <span className="text-xs text-gray-400">...</span>
           ) : (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"

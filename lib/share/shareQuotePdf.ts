@@ -1,3 +1,9 @@
+export type PreparedShare = {
+  file: File
+  title: string
+  text: string
+}
+
 export type ShareResult =
   | { status: 'shared' }
   | { status: 'cancelled' }
@@ -24,59 +30,47 @@ export function buildPdfFilename(
   return parts.join(' - ') + '.pdf'
 }
 
-async function fetchPdfBlob(
+// Step 1 — fetch PDF and build File. Call this when user first taps the share button.
+// Does NOT call navigator.share — safe to await before user activation expires.
+export async function prepareQuotePdfFile(
   quoteId: string,
-): Promise<{ ok: true; blob: Blob } | { ok: false; message: string }> {
-  try {
-    const res = await fetch(`/api/quotes/${quoteId}/pdf`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const blob = await res.blob()
-    return { ok: true, blob }
-  } catch {
-    return { ok: false, message: 'שגיאה בהפקת PDF' }
-  }
-}
-
-export async function shareQuotePdf(
-  quoteId: string,
-  quoteNumber: string | null,
+  quoteNumber: string | null | undefined,
+  clientName: string | null | undefined,
   companyName: string,
-  clientName?: string | null,
-): Promise<ShareResult> {
-  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
-    return { status: 'no-support' }
-  }
-
-  const fetched = await fetchPdfBlob(quoteId)
-  if (!fetched.ok) return { status: 'error', message: fetched.message }
-
-  const { blob } = fetched
+): Promise<PreparedShare> {
+  const res = await fetch(`/api/quotes/${quoteId}/pdf`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
   const filename = buildPdfFilename(quoteNumber, clientName)
   const file = new File([blob], filename, { type: 'application/pdf' })
-
   const title = 'הצעת מחיר'
   const textLines: string[] = []
   if (clientName) textLines.push(`לכבוד: ${clientName}`)
-  textLines.push(
-    companyName
-      ? `מצורפת הצעת מחיר מטעם ${companyName}`
-      : 'מצורפת הצעת מחיר'
-  )
+  textLines.push(companyName ? `מצורפת הצעת מחיר מטעם ${companyName}` : 'מצורפת הצעת מחיר')
   const text = textLines.join('\n')
-
-  try {
-    await navigator.share({ title, text, files: [file] })
-    return { status: 'shared' }
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      return { status: 'cancelled' }
-    }
-    console.error('[shareQuotePdf]', err)
-    return { status: 'error', message: err instanceof Error ? err.message : String(err) }
-  }
+  return { file, title, text }
 }
 
-// Download via direct API URL — never create blob: URLs
+// Step 2 — call navigator.share() immediately. Must be invoked synchronously
+// inside a click handler with no awaits before it, so user activation is preserved.
+export function sharePreparedFile(prepared: PreparedShare): Promise<ShareResult> {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    return Promise.resolve({ status: 'no-support' })
+  }
+  if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: [prepared.file] })) {
+    return Promise.resolve({ status: 'no-support' })
+  }
+  return navigator
+    .share({ title: prepared.title, text: prepared.text, files: [prepared.file] })
+    .then((): ShareResult => ({ status: 'shared' }))
+    .catch((err): ShareResult => {
+      if (err instanceof Error && err.name === 'AbortError') return { status: 'cancelled' }
+      console.error('[sharePreparedFile]', err)
+      return { status: 'error', message: err instanceof Error ? err.message : String(err) }
+    })
+}
+
+// Download via direct API URL — never creates blob: URLs
 export function triggerApiDownload(quoteId: string, filename: string): void {
   const a = document.createElement('a')
   a.href = `/api/quotes/${quoteId}/pdf`

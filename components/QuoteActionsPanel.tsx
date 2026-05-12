@@ -8,7 +8,7 @@ import {
   type QuoteStatus, type PaymentStatus,
 } from '@/types'
 import { formatCurrency } from '@/lib/calculations'
-import { shareQuotePdf } from '@/lib/share/shareQuotePdf'
+import { prepareQuotePdfFile, sharePreparedFile, type PreparedShare } from '@/lib/share/shareQuotePdf'
 
 const ACTIVE_STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'rejected']
 const PAYMENT_STATUS_ORDER: PaymentStatus[] = ['unpaid', 'partial', 'paid', 'closed_partial']
@@ -88,7 +88,8 @@ export function QuoteActionsPanel({
   const [archiveWorking, setArchiveWorking] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteWorking, setDeleteWorking] = useState(false)
-  const [shareState, setShareState] = useState<'idle' | 'loading' | 'unsupported'>('idle')
+  const [shareState, setShareState] = useState<'idle' | 'preparing' | 'ready' | 'sharing' | 'error' | 'no-support'>('idle')
+  const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null)
 
   // Payment request (non-admin) / inline review (admin)
   const [hasPendingRequest, setHasPendingRequest] = useState(!!pendingPaymentRequest)
@@ -305,14 +306,35 @@ export function QuoteActionsPanel({
     router.push('/dashboard?status=archived')
   }
 
-  const handleSharePdf = async () => {
-    setShareState('loading')
-    const result = await shareQuotePdf(quoteId, quoteNumber, companyName, clientName)
-    if (result.status === 'shared' || result.status === 'cancelled') {
-      setShareState('idle')
-    } else {
-      setShareState('unsupported')
+  const handlePrepareShare = async () => {
+    setShareState('preparing')
+    try {
+      const p = await prepareQuotePdfFile(quoteId, quoteNumber, clientName, companyName)
+      setPreparedShare(p)
+      setShareState('ready')
+    } catch {
+      setShareState('error')
+      setTimeout(() => setShareState('idle'), 3500)
     }
+  }
+
+  const handleShareNow = () => {
+    if (!preparedShare) return
+    setShareState('sharing')
+    sharePreparedFile(preparedShare).then((result) => {
+      if (result.status === 'cancelled') {
+        setShareState('ready')
+      } else if (result.status === 'no-support') {
+        setShareState('no-support')
+        setPreparedShare(null)
+      } else if (result.status === 'error') {
+        setShareState('error')
+        setTimeout(() => { setShareState('idle'); setPreparedShare(null) }, 3500)
+      } else {
+        setShareState('idle')
+        setPreparedShare(null)
+      }
+    })
   }
 
   return (
@@ -649,22 +671,33 @@ export function QuoteActionsPanel({
 
       {/* Share PDF + Archive/Restore/Delete */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
-        {shareState === 'unsupported' ? (
+        {shareState === 'no-support' ? (
           <div className="space-y-2">
             <p className="text-xs text-gray-500 text-center leading-relaxed">
               שיתוף ישיר אינו נתמך במכשיר זה.
               ניתן להוריד את ה-PDF ולשלוח ידנית.
             </p>
-            <button type="button" onClick={() => setShareState('idle')}
+            <button type="button" onClick={() => { setShareState('idle'); setPreparedShare(null) }}
               className="w-full py-2 rounded-xl text-xs text-gray-400 active:text-gray-600">
               הבנתי
             </button>
           </div>
-        ) : (
-          <button type="button" onClick={handleSharePdf} disabled={shareState === 'loading'}
-            className="w-full py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 text-sm font-semibold active:bg-gray-100 transition-colors disabled:opacity-50">
-            {shareState === 'loading' ? 'מכין קובץ PDF...' : 'שתף PDF'}
+        ) : shareState === 'ready' && preparedShare ? (
+          <button type="button" onClick={handleShareNow}
+            className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold active:bg-blue-700 transition-colors">
+            שתף עכשיו
           </button>
+        ) : (
+          <>
+            {shareState === 'error' && (
+              <p className="text-xs text-red-500 text-center">שגיאה בהפקת PDF. נסה שוב.</p>
+            )}
+            <button type="button" onClick={handlePrepareShare} disabled={shareState !== 'idle'}
+              className="w-full py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 text-sm font-semibold active:bg-gray-100 transition-colors disabled:opacity-50">
+              {shareState === 'preparing' ? 'מכין קובץ PDF...' :
+               shareState === 'sharing' ? 'משתף...' : 'שתף PDF'}
+            </button>
+          </>
         )}
 
         {!isArchived && canEdit && !archiveConfirm && (
