@@ -288,13 +288,14 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // RTL column order: total | price | qty | unit | description | #
-  colTotal: { flex: 1.2 },
-  colPrice: { flex: 1.2 },
-  colQty:   { flex: 0.6 },
-  colUnit:  { flex: 0.6 },
-  colDesc:  { flex: 3.9 },
-  colNum:   { flex: 0.3 },
+  // RTL column order (visual right→left): מס׳ | תיאור עבודה | יח׳ | כמות | מחיר יח׳ | סה״כ
+  // Fixed widths (not flex) so react-pdf wraps text within a hard boundary.
+  colTotal: { width: '17%' },
+  colPrice: { width: '17%' },
+  colQty:   { width: '8%' },
+  colUnit:  { width: '8%' },
+  colDesc:  { width: '44%', paddingLeft: 5 },  // paddingLeft = gap between description and יח׳
+  colNum:   { width: '6%' },
 
   // ── Images ───────────────────────────────────────────────────────────────────
   imageGrid: {
