@@ -289,12 +289,12 @@ const s = StyleSheet.create({
   },
 
   // RTL column order: total | price | qty | unit | description | #
-  colTotal: { flex: 1.3 },
-  colPrice: { flex: 1.3 },
-  colQty:   { flex: 0.65 },
-  colUnit:  { flex: 0.75 },
-  colDesc:  { flex: 3.5 },
-  colNum:   { flex: 0.3, textAlign: 'center' as never },
+  colTotal: { flex: 1.2 },
+  colPrice: { flex: 1.2 },
+  colQty:   { flex: 0.6 },
+  colUnit:  { flex: 0.6 },
+  colDesc:  { flex: 3.9 },
+  colNum:   { flex: 0.3 },
 
   // ── Images ───────────────────────────────────────────────────────────────────
   imageGrid: {
@@ -552,7 +552,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
                 <View>
                   <Text style={s.fieldLabel}>תיאור הפרויקט</Text>
                   <Text style={[s.fieldValue, { fontWeight: 'normal' as never }]}>
-                    {quote.project_description}
+                    {fixRtlText(quote.project_description)}
                   </Text>
                 </View>
               ) : null}
@@ -563,12 +563,12 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           <View style={s.tableContainer}>
             {/* Header — RTL: סה"כ | מחיר יח' | כמות | יח' | תיאור | # */}
             <View style={s.tableHeader}>
-              <Text style={[s.thText, s.colTotal, { textAlign: 'left' }]}>סה״כ</Text>
-              <Text style={[s.thText, s.colPrice, { textAlign: 'left' }]}>מחיר יח׳</Text>
-              <Text style={[s.thText, s.colQty, { textAlign: 'left' }]}>כמות</Text>
-              <Text style={[s.thText, s.colUnit]}>יח׳</Text>
-              <Text style={[s.thText, s.colDesc]}>תיאור עבודה</Text>
-              <Text style={[s.thText, s.colNum]}>מס׳</Text>
+              <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>סה״כ</Text></View>
+              <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>מחיר יח׳</Text></View>
+              <View style={s.colQty}><Text style={[s.thText, { textAlign: 'left' }]}>כמות</Text></View>
+              <View style={s.colUnit}><Text style={s.thText}>יח׳</Text></View>
+              <View style={s.colDesc}><Text style={s.thText}>תיאור עבודה</Text></View>
+              <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.thText}>מס׳</Text></View>
             </View>
 
             {items.map((item, idx) => {
@@ -578,18 +578,16 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               return (
                 <View key={item.item_number} wrap={false}>
                   <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}]}>
-                    <Text style={[s.tdNum, s.colTotal]}>{fmtCurrency(lineTotal)}</Text>
-                    <Text style={[s.tdNum, s.colPrice]}>{fmtCurrency(item.unit_price)}</Text>
-                    <Text style={[s.tdNum, s.colQty]}>{item.quantity}</Text>
-                    <Text style={[s.tdText, s.colUnit]}>{item.unit}</Text>
-                    <Text style={[s.tdText, s.colDesc]}>{item.description}</Text>
-                    <Text style={[s.tdText, s.colNum, { textAlign: 'center' }]}>
-                      {item.item_number}
-                    </Text>
+                    <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
+                    <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
+                    <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
+                    <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
+                    <View style={s.colDesc}><Text style={s.tdText}>{fixRtlText(item.description)}</Text></View>
+                    <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
                   </View>
                   {item.notes ? (
                     <View style={s.notesRow}>
-                      <Text style={s.notesText}>הערה: {item.notes}</Text>
+                      <Text style={s.notesText}>{`הערה: ${fixRtlText(item.notes)}`}</Text>
                     </View>
                   ) : null}
                   {hasPdfImages && (
