@@ -618,8 +618,8 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
 
           {/* ── Items table ─────────────────────────────────────────── */}
           <View style={s.tableContainer}>
-            {/* Header — RTL: סה"כ | מחיר יח' | כמות | יח' | תיאור | # */}
-            <View style={s.tableHeader}>
+            {/* Header — repeats on each page the table continues to */}
+            <View style={s.tableHeader} fixed>
               <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>סה״כ</Text></View>
               <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>מחיר יח׳</Text></View>
               <View style={s.colQty}><Text style={[s.thText, { textAlign: 'left' }]}>כמות</Text></View>
