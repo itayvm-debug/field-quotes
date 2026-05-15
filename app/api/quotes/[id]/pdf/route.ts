@@ -147,21 +147,11 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(pdfElement as any)
 
-    // Hebrew filename: "הצעת מחיר - {client} - {number}.pdf"
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clientName: string = (quote as any).client_name ?? ''
-    const sanitize = (s: string) => s.replace(/[/\\:*?"<>|]/g, '').trim().slice(0, 60)
-    const filenameParts: string[] = ['הצעת מחיר']
-    if (clientName) { const c = sanitize(clientName); if (c) filenameParts.push(c) }
-    if (quote.quote_number) { const n = sanitize(quote.quote_number); if (n) filenameParts.push(n) }
-    const filename = filenameParts.join(' - ') + '.pdf'
-
-    // RFC 5987 encoding for non-ASCII filenames; ASCII fallback for older parsers
+    // ASCII-only filename to avoid first-open rendering issues on iOS Mail / WhatsApp.
     const asciiFallback = quote.quote_number
       ? `quote-${quote.quote_number}.pdf`
       : `quote-${id.slice(0, 8)}.pdf`
-    const disposition =
-      `inline; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    const disposition = `inline; filename="${asciiFallback}"`
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const blob = new Blob([buffer as any], { type: 'application/pdf' })
@@ -169,6 +159,10 @@ export async function GET(
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': disposition,
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     })
   } catch (err) {

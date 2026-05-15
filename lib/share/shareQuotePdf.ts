@@ -39,11 +39,6 @@ function buildAsciiFallbackFilename(quoteNumber: string | null | undefined): str
   return num ? `quote-${num}.pdf` : 'quote.pdf'
 }
 
-function isMobileDevice(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-}
-
 // Step 1 — fetch PDF and build File. Call this when user first taps the share button.
 // Does NOT call navigator.share — safe to await before user activation expires.
 export async function prepareQuotePdfFile(
@@ -67,11 +62,9 @@ export async function prepareQuotePdfFile(
 
   const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
 
-  // Mobile: Hebrew filename works correctly in iOS/Android share sheet.
-  // Desktop: use ASCII fallback — WhatsApp Web garbles non-ASCII filenames.
-  const filename = isMobileDevice()
-    ? buildPdfFilename(quoteNumber, clientName)
-    : buildAsciiFallbackFilename(quoteNumber)
+  // ASCII-only filename for stability across iOS Mail, WhatsApp, and Android.
+  // Hebrew filename caused first-open rendering failures on iOS despite content being valid.
+  const filename = buildAsciiFallbackFilename(quoteNumber)
 
   const file = new File([pdfBlob], filename, { type: 'application/pdf' })
 
