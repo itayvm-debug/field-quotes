@@ -537,6 +537,63 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   const localLogo = path.join(process.cwd(), 'public', 'company-logo.png')
   const effectiveLogo = logoUrl ?? localLogo
 
+  // Heuristic: carry the last item to page 2 when the summary would otherwise be alone there.
+  // Triggers when: 3+ items AND at least one optional AND at least one description > 50 chars.
+  const hasLongDescription = items.some(i => i.description.length > 50)
+  const hasOptionalItem = items.some(i => i.is_optional)
+  const shouldCarryLast = items.length >= 3 && hasOptionalItem && hasLongDescription
+  const mainItems = shouldCarryLast ? items.slice(0, -1) : items
+  const carriedItem = shouldCarryLast ? items[items.length - 1] : null
+
+  // Shared table header JSX — used in both the main table and the page-2 continuation
+  const tableHeaderRow = (
+    <View style={s.tableHeader}>
+      <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>סה״כ</Text></View>
+      <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>מחיר יח׳</Text></View>
+      <View style={s.colQty}><Text style={[s.thText, { textAlign: 'left' }]}>כמות</Text></View>
+      <View style={s.colUnit}><Text style={s.thText}>יח׳</Text></View>
+      <View style={s.colDesc}><Text style={s.thText}>תיאור עבודה</Text></View>
+      <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.thText}>מס׳</Text></View>
+    </View>
+  )
+
+  // Item row renderer — display-only; does not affect any financial calculations
+  const renderItemRow = (item: PdfItem, idx: number) => {
+    const lineTotal = item.quantity * item.unit_price
+    const isAlt = idx % 2 === 1
+    const isOptional = item.is_optional ?? false
+    const hasPdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl).length > 0
+    return (
+      <View key={item.item_number} wrap={false}>
+        <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}, isOptional ? s.tableRowOptional : {}]}>
+          <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
+          <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
+          <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
+          <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
+          <View style={s.colDesc}>
+            {isOptional && <Text style={s.optionalLabel}>אופציה *‏</Text>}
+            {renderBoldText(item.description, s.tdText)}
+          </View>
+          <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
+        </View>
+        {item.notes ? (
+          <View style={s.notesRow}>
+            <Text style={s.notesText}>{`הערה: ${fixRtlText(item.notes)}`}</Text>
+          </View>
+        ) : null}
+        {hasPdfImages && (
+          <View style={s.imageGrid}>
+            {item.images
+              .filter((img) => img.include_in_pdf && img.signedUrl)
+              .map((img, i) => (
+                <Image key={i} src={img.signedUrl} style={s.itemImage} />
+              ))}
+          </View>
+        )}
+      </View>
+    )
+  }
+
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -618,54 +675,19 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
 
           {/* ── Items table ─────────────────────────────────────────── */}
           <View style={s.tableContainer}>
-            {/* Header — repeats on each page the table continues to */}
-            <View style={s.tableHeader} fixed>
-              <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>סה״כ</Text></View>
-              <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>מחיר יח׳</Text></View>
-              <View style={s.colQty}><Text style={[s.thText, { textAlign: 'left' }]}>כמות</Text></View>
-              <View style={s.colUnit}><Text style={s.thText}>יח׳</Text></View>
-              <View style={s.colDesc}><Text style={s.thText}>תיאור עבודה</Text></View>
-              <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.thText}>מס׳</Text></View>
-            </View>
-
-            {items.map((item, idx) => {
-              const lineTotal = item.quantity * item.unit_price
-              const isAlt = idx % 2 === 1
-              const isOptional = item.is_optional ?? false
-              const hasPdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl).length > 0
-              return (
-                <View key={item.item_number} wrap={false}>
-                  <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}, isOptional ? s.tableRowOptional : {}]}>
-                    <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
-                    <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
-                    <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
-                    <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
-                    <View style={s.colDesc}>
-                      {isOptional && <Text style={s.optionalLabel}>אופציה *‏</Text>}
-                      {renderBoldText(item.description, s.tdText)}
-                    </View>
-                    <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
-                  </View>
-                  {item.notes ? (
-                    <View style={s.notesRow}>
-                      <Text style={s.notesText}>{`הערה: ${fixRtlText(item.notes)}`}</Text>
-                    </View>
-                  ) : null}
-                  {hasPdfImages && (
-                    <View style={s.imageGrid}>
-                      {item.images
-                        .filter((img) => img.include_in_pdf && img.signedUrl)
-                        .map((img, i) => (
-                          <Image key={i} src={img.signedUrl} style={s.itemImage} />
-                        ))}
-                    </View>
-                  )}
-                </View>
-              )
-            })}
+            {tableHeaderRow}
+            {mainItems.map((item, idx) => renderItemRow(item, idx))}
           </View>
 
-          {/* ── Summary + Terms + Signature — kept together across page breaks ── */}
+          {/* ── Continuation table on page 2 — triggered by heuristic ── */}
+          {carriedItem && (
+            <View style={s.tableContainer} break>
+              {tableHeaderRow}
+              {renderItemRow(carriedItem, items.length - 1)}
+            </View>
+          )}
+
+          {/* ── Summary + Terms + Signature — kept together ── */}
           <View wrap={false}>
 
             {/* Financial summary */}
