@@ -15,6 +15,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
   const subtotal = calcSubtotal(items)
   const vatAmount = calcVat(subtotal, vatEnabled ? VAT_RATE : 0)
   const total = calcTotal(subtotal, vatAmount)
+  const optionalCount = items.filter((i) => i.is_optional).length
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -58,6 +59,11 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
           </span>
           <span className="font-bold text-orange-600 text-xl">{formatCurrency(total)}</span>
         </div>
+        {optionalCount > 0 && (
+          <p className="text-xs text-amber-600 pt-2 border-t border-gray-100 mt-1">
+            * לא כולל {optionalCount === 1 ? 'סעיף אופציה אחד' : `${optionalCount} סעיפי אופציה`}
+          </p>
+        )}
       </div>
     </div>
   )

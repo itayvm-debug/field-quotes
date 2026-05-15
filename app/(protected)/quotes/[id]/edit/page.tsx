@@ -52,6 +52,7 @@ export default async function EditQuotePage({ params }: Props) {
       quantity: number
       unit_price: number
       notes: string
+      is_optional?: boolean
     }) => ({
       tempId: item.id,
       dbId: item.id,
@@ -61,6 +62,7 @@ export default async function EditQuotePage({ params }: Props) {
       quantity: String(item.quantity),
       unit_price: String(item.unit_price),
       notes: item.notes,
+      is_optional: item.is_optional,
     }))
 
   return (

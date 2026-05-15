@@ -44,6 +44,7 @@ const newItemDraft = (itemNumber: number): QuoteItemDraft => ({
   quantity: '1',
   unit_price: '0',
   notes: '',
+  is_optional: false,
 })
 
 interface SaveResult {
@@ -152,6 +153,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       const { data: inserted, error } = await supabase
         .from('quote_items')
         .insert(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           newItems.map((i) => ({
             quote_id: currentId!,
             item_number: i.item_number,
@@ -160,7 +162,8 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
             quantity: parseFloat(i.quantity) || 0,
             unit_price: parseFloat(i.unit_price) || 0,
             notes: i.notes,
-          }))
+            is_optional: i.is_optional ?? false,
+          })) as any
         )
         .select('id')
       if (error) return null
@@ -184,6 +187,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     for (const item of items.filter((i) => i.dbId)) {
       await supabase
         .from('quote_items')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .update({
           item_number: item.item_number,
           description: item.description,
@@ -191,7 +195,8 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
           quantity: parseFloat(item.quantity) || 0,
           unit_price: parseFloat(item.unit_price) || 0,
           notes: item.notes,
-        })
+          is_optional: item.is_optional ?? false,
+        } as any)
         .eq('id', item.dbId!)
     }
 

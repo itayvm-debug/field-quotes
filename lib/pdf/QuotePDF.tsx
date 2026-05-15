@@ -59,6 +59,7 @@ export interface PdfItem {
   quantity: number
   unit_price: number
   notes: string
+  is_optional?: boolean
   images: PdfItemImage[]
 }
 
@@ -297,6 +298,26 @@ const s = StyleSheet.create({
   colDesc:  { width: '44%', paddingLeft: 5 },  // paddingLeft = gap between description and יח׳
   colNum:   { width: '6%' },
 
+  tableRowOptional: {
+    backgroundColor: '#FFFBEB',
+  },
+  optionalLabel: {
+    fontSize: 6.5,
+    color: '#D97706',
+    fontWeight: 'bold' as never,
+    textAlign: 'right' as never,
+    marginBottom: 1,
+  },
+  optionalFootnote: {
+    marginTop: 6,
+    paddingHorizontal: 6,
+  },
+  optionalFootnoteText: {
+    fontSize: 7.5,
+    color: '#D97706',
+    textAlign: 'right' as never,
+  },
+
   // ── Images ───────────────────────────────────────────────────────────────────
   imageGrid: {
     flexDirection: 'row',
@@ -473,7 +494,9 @@ function SectionTitle({ children }: { children: string }) {
 
 // ── PDF Document ───────────────────────────────────────────────────────────────
 export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFProps) {
-  const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+  const requiredItems = items.filter((i) => !i.is_optional)
+  const hasOptional = items.some((i) => i.is_optional)
+  const subtotal = requiredItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
   const vatAmount = (subtotal * quote.vat_percentage) / 100
   const total = subtotal + vatAmount
 
@@ -575,15 +598,19 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
             {items.map((item, idx) => {
               const lineTotal = item.quantity * item.unit_price
               const isAlt = idx % 2 === 1
+              const isOptional = item.is_optional ?? false
               const hasPdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl).length > 0
               return (
                 <View key={item.item_number} wrap={false}>
-                  <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}]}>
+                  <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}, isOptional ? s.tableRowOptional : {}]}>
                     <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
                     <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
                     <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
                     <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
-                    <View style={s.colDesc}><Text style={s.tdText}>{fixRtlText(item.description)}</Text></View>
+                    <View style={s.colDesc}>
+                      {isOptional && <Text style={s.optionalLabel}>אופציה *‏</Text>}
+                      <Text style={s.tdText}>{fixRtlText(item.description)}</Text>
+                    </View>
                     <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
                   </View>
                   {item.notes ? (
@@ -623,6 +650,13 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
                 </Text>
               </View>
             </View>
+            {hasOptional && (
+              <View style={s.optionalFootnote}>
+                <Text style={s.optionalFootnoteText}>
+                  {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* ── Terms ───────────────────────────────────────────────── */}

@@ -32,12 +32,19 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <div className={`bg-white rounded-2xl border shadow-sm p-4 ${item.is_optional ? 'border-amber-200' : 'border-gray-100'}`}>
       {/* Item number + remove */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-orange-600 bg-orange-50 rounded-full px-2.5 py-1">
-          סעיף {item.item_number}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-orange-600 bg-orange-50 rounded-full px-2.5 py-1">
+            סעיף {item.item_number}
+          </span>
+          {item.is_optional && (
+            <span className="text-xs font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
+              אופציה
+            </span>
+          )}
+        </div>
         <button
           type="button"
           onClick={onRemove}
@@ -126,10 +133,30 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
         />
       </div>
 
+      {/* Optional toggle */}
+      <div className="mb-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={item.is_optional ?? false}
+            onChange={(e) => onChange({ is_optional: e.target.checked })}
+            className="rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+          />
+          <span className="text-xs text-gray-500">סעיף אופציה (לא נכלל בסה״כ)</span>
+        </label>
+      </div>
+
       {/* Item total */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
         <span className="text-sm text-gray-500">סה״כ סעיף</span>
-        <span className="font-bold text-gray-900 text-lg">{formatCurrency(total)}</span>
+        <div className="text-right">
+          <span className={`font-bold text-lg ${item.is_optional ? 'text-gray-400' : 'text-gray-900'}`}>
+            {formatCurrency(total)}
+          </span>
+          {item.is_optional && (
+            <p className="text-xs text-amber-500 mt-0.5">לא נכלל בסה״כ</p>
+          )}
+        </div>
       </div>
 
       {/* Images */}

@@ -7,7 +7,9 @@ export function calcItemTotal(quantity: string | number, unitPrice: string | num
 }
 
 export function calcSubtotal(items: QuoteItemDraft[]): number {
-  return items.reduce((sum, item) => sum + calcItemTotal(item.quantity, item.unit_price), 0)
+  return items
+    .filter((item) => !item.is_optional)
+    .reduce((sum, item) => sum + calcItemTotal(item.quantity, item.unit_price), 0)
 }
 
 export function calcVat(subtotal: number, vatPct: number): number {

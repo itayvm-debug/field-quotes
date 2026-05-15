@@ -68,6 +68,7 @@ export interface QuoteItem {
   quantity: number
   unit_price: number
   notes: string
+  is_optional: boolean
   created_at: string
   updated_at: string
 }
@@ -92,6 +93,7 @@ export interface QuoteItemDraft {
   quantity: string
   unit_price: string
   notes: string
+  is_optional?: boolean
 }
 
 export interface QuoteHeaderDraft {

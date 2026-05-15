@@ -93,7 +93,7 @@ export default async function QuoteViewPage({ params }: Props) {
 
   const sortedItems = ((quote.quote_items ?? []) as Array<{
     id: string; item_number: number; description: string; unit: string
-    quantity: number; unit_price: number; notes: string
+    quantity: number; unit_price: number; notes: string; is_optional?: boolean
     item_images: Array<{ id: string; storage_path: string; include_in_pdf: boolean; display_order: number; caption: string }>
   }>).sort((a, b) => a.item_number - b.item_number)
 
@@ -114,6 +114,7 @@ export default async function QuoteViewPage({ params }: Props) {
   const draftItems: QuoteItemDraft[] = sortedItems.map((i) => ({
     tempId: i.id, item_number: i.item_number, description: i.description,
     unit: i.unit, notes: i.notes, quantity: String(i.quantity), unit_price: String(i.unit_price),
+    is_optional: i.is_optional,
   }))
   const subtotal = calcSubtotal(draftItems)
   const vat = calcVat(subtotal, quote.vat_percentage)
@@ -166,22 +167,30 @@ export default async function QuoteViewPage({ params }: Props) {
           <section className="space-y-3">
             <h2 className="font-semibold text-gray-700">סעיפים ({itemsWithImages.length})</h2>
             {itemsWithImages.map((item) => (
-              <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div key={item.id} className={`bg-white rounded-2xl border shadow-sm p-4 ${(item as {is_optional?: boolean}).is_optional ? 'border-amber-200' : 'border-gray-100'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900">
-                      <span className="text-gray-400 text-xs font-mono ml-1">{item.item_number}.</span>
-                      {item.description || '(ללא תיאור)'}
-                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                      <span className="text-gray-400 text-xs font-mono">{item.item_number}.</span>
+                      {(item as {is_optional?: boolean}).is_optional && (
+                        <span className="text-xs font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
+                          אופציה
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-medium text-gray-900">{item.description || '(ללא תיאור)'}</p>
                     {item.notes && <p className="text-xs text-gray-400 mt-1">{item.notes}</p>}
                   </div>
                   <div className="text-left shrink-0">
-                    <p className="font-semibold text-gray-900 text-sm">
+                    <p className={`font-semibold text-sm ${(item as {is_optional?: boolean}).is_optional ? 'text-gray-400' : 'text-gray-900'}`}>
                       {formatCurrency(item.quantity * item.unit_price)}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {item.quantity} {item.unit} × {formatCurrency(item.unit_price)}
                     </p>
+                    {(item as {is_optional?: boolean}).is_optional && (
+                      <p className="text-xs text-amber-500 mt-0.5">לא בסה״כ</p>
+                    )}
                   </div>
                 </div>
                 {item.images.length > 0 && (
@@ -215,6 +224,11 @@ export default async function QuoteViewPage({ params }: Props) {
               <span>{quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}</span>
               <span>{totalFormatted}</span>
             </div>
+            {draftItems.some((i) => i.is_optional) && (
+              <p className="text-xs text-amber-600 pt-2 border-t border-gray-100 mt-1">
+                * סעיפי אופציה אינם כלולים בסה״כ
+              </p>
+            )}
             {quoteStatus === 'accepted' && paidAmount > 0 && (
               <div className="pt-2 border-t border-gray-100 space-y-1.5 mt-2">
                 <div className="flex justify-between text-sm">

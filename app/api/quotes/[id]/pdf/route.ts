@@ -110,6 +110,7 @@ export async function GET(
         quantity: parseFloat(item.quantity),
         unit_price: parseFloat(item.unit_price),
         notes: item.notes,
+        is_optional: item.is_optional ?? false,
         images,
       }
     })
