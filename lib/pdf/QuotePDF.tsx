@@ -473,23 +473,83 @@ const s = StyleSheet.create({
     backgroundColor: ORANGE,
   },
   footerRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingTop: 5,
+    paddingBottom: 2,
+    paddingHorizontal: 28,
+    backgroundColor: GRAY_LIGHT,
+  },
+  footerCompanyRow: {
+    alignItems: 'center',
+    paddingBottom: 5,
     paddingHorizontal: 28,
     backgroundColor: GRAY_LIGHT,
   },
   footerText: {
-    flex: 1,
     textAlign: 'center',
     fontSize: 7,
     color: GRAY_TEXT,
   },
   footerPageNum: {
-    width: 60,
-    fontSize: 7,
+    fontSize: 7.5,
+    color: GRAY_TEXT,
+    textAlign: 'center' as never,
+    fontWeight: 'bold' as never,
+  },
+
+  // ── Compact continuation header (in-flow on page 2 continuation block) ───────
+  continuationBand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 28,
+    paddingVertical: 5,
+    marginHorizontal: -28,
+    backgroundColor: WHITE,
+  },
+  continuationBandLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  continuationBandRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  continuationOrangeLine: {
+    height: 3,
+    backgroundColor: ORANGE,
+    marginHorizontal: -28,
+  },
+  logoSmall: {
+    height: 22,
+    width: 48,
+    objectFit: 'contain',
+  },
+  continuationCompanyName: {
+    fontWeight: 'bold',
+    fontSize: 10,
+    color: BLACK,
+    textAlign: 'right',
+  },
+  continuationQuoteTitle: {
+    fontWeight: 'bold',
+    fontSize: 9,
+    color: BLACK,
+  },
+  continuationQuoteNum: {
+    fontSize: 8,
+    fontWeight: 'bold' as never,
+    color: ORANGE,
+  },
+  continuationLabel: {
+    fontSize: 8,
+    fontWeight: 'bold' as never,
     color: GRAY_TEXT,
     textAlign: 'right' as never,
+    marginTop: 8,
+    marginBottom: 4,
   },
 })
 
@@ -679,78 +739,158 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
             {mainItems.map((item, idx) => renderItemRow(item, idx))}
           </View>
 
-          {/* ── Continuation table on page 2 — triggered by heuristic ── */}
-          {carriedItem && (
-            <View style={s.tableContainer} break>
-              {tableHeaderRow}
-              {renderItemRow(carriedItem, items.length - 1)}
-            </View>
-          )}
+          {/* ── Page 2: compact header + continued table + summary (heuristic split) ── */}
+          {carriedItem ? (
+            <View break>
 
-          {/* ── Summary + Terms + Signature — kept together ── */}
-          <View wrap={false}>
-
-            {/* Financial summary */}
-            <View style={s.summaryWrapper}>
-              <View style={s.summaryBox}>
-                <View style={s.summaryRow}>
-                  <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
-                  <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
+              {/* Compact continuation header */}
+              <View style={s.continuationBand}>
+                <View style={s.continuationBandLeft}>
+                  <Text style={s.continuationQuoteTitle}>הצעת מחיר</Text>
+                  <Text style={s.continuationQuoteNum}>{quote.quote_number ?? '—'}</Text>
                 </View>
-                <View style={s.summaryRow}>
-                  <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
-                  <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
-                </View>
-                <View style={s.summaryTotalRow}>
-                  <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
-                  <Text style={s.summaryTotalLabel}>
-                    {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
-                  </Text>
+                <View style={s.continuationBandRight}>
+                  <Text style={s.continuationCompanyName}>{company.company_name}</Text>
+                  <Image src={effectiveLogo} style={s.logoSmall} />
                 </View>
               </View>
-              {hasOptional && (
-                <View style={s.optionalFootnote}>
-                  <Text style={s.optionalFootnoteText}>
-                    {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
-                  </Text>
+              <View style={s.continuationOrangeLine} />
+
+              {/* Continuation label */}
+              <Text style={s.continuationLabel}>{'המשך טבלת סעיפים‏'}</Text>
+
+              {/* Repeated table header + carried item */}
+              <View style={s.tableContainer}>
+                {tableHeaderRow}
+                <View style={{ marginTop: 3 }}>
+                  {renderItemRow(carriedItem, items.length - 1)}
+                </View>
+              </View>
+
+              {/* Summary + Terms + Signature */}
+              <View wrap={false}>
+                <View style={s.summaryWrapper}>
+                  <View style={s.summaryBox}>
+                    <View style={s.summaryRow}>
+                      <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
+                      <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
+                    </View>
+                    <View style={s.summaryRow}>
+                      <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
+                      <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
+                    </View>
+                    <View style={s.summaryTotalRow}>
+                      <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
+                      <Text style={s.summaryTotalLabel}>
+                        {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
+                      </Text>
+                    </View>
+                  </View>
+                  {hasOptional && (
+                    <View style={s.optionalFootnote}>
+                      <Text style={s.optionalFootnoteText}>
+                        {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {(quote.payment_terms || quote.exclusions) && (
+                  <View style={s.termSection}>
+                    {quote.payment_terms ? (
+                      <View style={s.termRow}>
+                        <Text style={s.termLabel}>תנאי תשלום</Text>
+                        <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
+                      </View>
+                    ) : null}
+                    {quote.exclusions ? (
+                      <View style={s.termRow}>
+                        <Text style={s.termLabel}>החרגות / הערות</Text>
+                        <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
+                {creator && quote.status !== 'draft' && (
+                  <View style={s.signatureSection}>
+                    {creator.signature_url ? (
+                      <Image src={creator.signature_url} style={s.signatureImage} />
+                    ) : null}
+                    <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
+                    <Text style={s.signatureName}>
+                      {creator.full_name}
+                      {creator.job_title ? ` - ${creator.job_title}` : ''}
+                    </Text>
+                    <Text style={s.signatureCompany}>{company.company_name}</Text>
+                  </View>
+                )}
+              </View>
+
+            </View>
+          ) : (
+
+            /* ── Summary + Terms + Signature (single-page path) ── */
+            <View wrap={false}>
+
+              <View style={s.summaryWrapper}>
+                <View style={s.summaryBox}>
+                  <View style={s.summaryRow}>
+                    <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
+                    <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
+                  </View>
+                  <View style={s.summaryRow}>
+                    <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
+                    <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
+                  </View>
+                  <View style={s.summaryTotalRow}>
+                    <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
+                    <Text style={s.summaryTotalLabel}>
+                      {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
+                    </Text>
+                  </View>
+                </View>
+                {hasOptional && (
+                  <View style={s.optionalFootnote}>
+                    <Text style={s.optionalFootnoteText}>
+                      {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {(quote.payment_terms || quote.exclusions) && (
+                <View style={s.termSection}>
+                  {quote.payment_terms ? (
+                    <View style={s.termRow}>
+                      <Text style={s.termLabel}>תנאי תשלום</Text>
+                      <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
+                    </View>
+                  ) : null}
+                  {quote.exclusions ? (
+                    <View style={s.termRow}>
+                      <Text style={s.termLabel}>החרגות / הערות</Text>
+                      <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
+                    </View>
+                  ) : null}
                 </View>
               )}
+
+              {creator && quote.status !== 'draft' && (
+                <View style={s.signatureSection}>
+                  {creator.signature_url ? (
+                    <Image src={creator.signature_url} style={s.signatureImage} />
+                  ) : null}
+                  <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
+                  <Text style={s.signatureName}>
+                    {creator.full_name}
+                    {creator.job_title ? ` - ${creator.job_title}` : ''}
+                  </Text>
+                  <Text style={s.signatureCompany}>{company.company_name}</Text>
+                </View>
+              )}
+
             </View>
 
-            {/* Terms */}
-            {(quote.payment_terms || quote.exclusions) && (
-              <View style={s.termSection}>
-                {quote.payment_terms ? (
-                  <View style={s.termRow}>
-                    <Text style={s.termLabel}>תנאי תשלום</Text>
-                    <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
-                  </View>
-                ) : null}
-                {quote.exclusions ? (
-                  <View style={s.termRow}>
-                    <Text style={s.termLabel}>החרגות / הערות</Text>
-                    <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
-
-            {/* Signature */}
-            {creator && quote.status !== 'draft' && (
-              <View style={s.signatureSection}>
-                {creator.signature_url ? (
-                  <Image src={creator.signature_url} style={s.signatureImage} />
-                ) : null}
-                <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
-                <Text style={s.signatureName}>
-                  {creator.full_name}
-                  {creator.job_title ? ` - ${creator.job_title}` : ''}
-                </Text>
-                <Text style={s.signatureCompany}>{company.company_name}</Text>
-              </View>
-            )}
-
-          </View>
+          )}
 
         </View>
 
@@ -767,8 +907,6 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
         <View style={s.footer} fixed>
           <View style={s.footerLine} />
           <View style={s.footerRow}>
-            <View style={{ width: 60 }} />
-            <Text style={s.footerText}>{company.footer_text || ''}</Text>
             <Text
               style={s.footerPageNum}
               render={({ pageNumber, totalPages }) =>
@@ -776,6 +914,11 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               }
             />
           </View>
+          {company.footer_text ? (
+            <View style={s.footerCompanyRow}>
+              <Text style={s.footerText}>{company.footer_text}</Text>
+            </View>
+          ) : null}
         </View>
       </Page>
     </Document>
