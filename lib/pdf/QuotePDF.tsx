@@ -119,8 +119,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 28,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   topBandLeft: {
     flexDirection: 'column',
@@ -161,7 +161,7 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 28,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: GRAY_LIGHT,
     borderBottomWidth: 1,
     borderBottomColor: GRAY_MID,
@@ -193,21 +193,21 @@ const s = StyleSheet.create({
   // ── Body ─────────────────────────────────────────────────────────────────────
   body: {
     paddingHorizontal: 28,
-    paddingTop: 14,
+    paddingTop: 10,
   },
 
   // ── Client section ──────────────────────────────────────────────────────────
   sectionCard: {
     backgroundColor: GRAY_LIGHT,
     borderRadius: 4,
-    padding: 10,
-    marginBottom: 12,
+    padding: 8,
+    marginBottom: 8,
   },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginBottom: 7,
+    marginBottom: 5,
   },
   sectionTitleDot: {
     width: 3,
@@ -242,19 +242,19 @@ const s = StyleSheet.create({
 
   // ── Table ────────────────────────────────────────────────────────────────────
   tableContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#F2F2F2',
-    paddingVertical: 6,
+    paddingVertical: 5,
     paddingHorizontal: 6,
     borderBottomWidth: 2,
     borderBottomColor: ORANGE,
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#C0C0C0',
@@ -337,7 +337,7 @@ const s = StyleSheet.create({
   // ── Financial summary ────────────────────────────────────────────────────────
   summaryWrapper: {
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   summaryBox: {
     width: 220,
@@ -388,11 +388,11 @@ const s = StyleSheet.create({
   termSection: {
     borderTopWidth: 1,
     borderTopColor: GRAY_MID,
-    paddingTop: 8,
-    marginBottom: 10,
+    paddingTop: 6,
+    marginBottom: 8,
   },
   termRow: {
-    marginBottom: 5,
+    marginBottom: 4,
   },
   termLabel: {
     fontSize: 7.5,
@@ -555,7 +555,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           {/* ── Client info ─────────────────────────────────────────── */}
           <View style={s.sectionCard}>
             <SectionTitle>פרטי לקוח</SectionTitle>
-            <View style={{ gap: 5 }}>
+            <View style={{ gap: 4 }}>
               <View>
                 <Text style={s.fieldLabel}>לכבוד</Text>
                 <Text style={[s.fieldValue, { fontSize: 10 }]}>{quote.client_name || '—'}</Text>
@@ -632,65 +632,70 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
             })}
           </View>
 
-          {/* ── Financial summary ────────────────────────────────────── */}
-          <View style={s.summaryWrapper}>
-            <View style={s.summaryBox}>
-              <View style={s.summaryRow}>
-                <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
-                <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
+          {/* ── Summary + Terms + Signature — kept together across page breaks ── */}
+          <View wrap={false}>
+
+            {/* Financial summary */}
+            <View style={s.summaryWrapper}>
+              <View style={s.summaryBox}>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
+                  <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
+                </View>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
+                  <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
+                </View>
+                <View style={s.summaryTotalRow}>
+                  <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
+                  <Text style={s.summaryTotalLabel}>
+                    {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
+                  </Text>
+                </View>
               </View>
-              <View style={s.summaryRow}>
-                <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
-                <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
-              </View>
-              <View style={s.summaryTotalRow}>
-                <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
-                <Text style={s.summaryTotalLabel}>
-                  {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
-                </Text>
-              </View>
+              {hasOptional && (
+                <View style={s.optionalFootnote}>
+                  <Text style={s.optionalFootnoteText}>
+                    {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
+                  </Text>
+                </View>
+              )}
             </View>
-            {hasOptional && (
-              <View style={s.optionalFootnote}>
-                <Text style={s.optionalFootnoteText}>
-                  {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
-                </Text>
+
+            {/* Terms */}
+            {(quote.payment_terms || quote.exclusions) && (
+              <View style={s.termSection}>
+                {quote.payment_terms ? (
+                  <View style={s.termRow}>
+                    <Text style={s.termLabel}>תנאי תשלום</Text>
+                    <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
+                  </View>
+                ) : null}
+                {quote.exclusions ? (
+                  <View style={s.termRow}>
+                    <Text style={s.termLabel}>החרגות / הערות</Text>
+                    <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
+                  </View>
+                ) : null}
               </View>
             )}
+
+            {/* Signature */}
+            {creator && quote.status !== 'draft' && (
+              <View style={s.signatureSection}>
+                {creator.signature_url ? (
+                  <Image src={creator.signature_url} style={s.signatureImage} />
+                ) : null}
+                <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
+                <Text style={s.signatureName}>
+                  {creator.full_name}
+                  {creator.job_title ? ` - ${creator.job_title}` : ''}
+                </Text>
+                <Text style={s.signatureCompany}>{company.company_name}</Text>
+              </View>
+            )}
+
           </View>
-
-          {/* ── Terms ───────────────────────────────────────────────── */}
-          {(quote.payment_terms || quote.exclusions) && (
-            <View style={s.termSection}>
-              {quote.payment_terms ? (
-                <View style={s.termRow}>
-                  <Text style={s.termLabel}>תנאי תשלום</Text>
-                  <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
-                </View>
-              ) : null}
-              {quote.exclusions ? (
-                <View style={s.termRow}>
-                  <Text style={s.termLabel}>החרגות / הערות</Text>
-                  <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
-                </View>
-              ) : null}
-            </View>
-          )}
-
-          {/* ── Signature ───────────────────────────────────────────── */}
-          {creator && quote.status !== 'draft' && (
-            <View style={s.signatureSection}>
-              {creator.signature_url ? (
-                <Image src={creator.signature_url} style={s.signatureImage} />
-              ) : null}
-              <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
-              <Text style={s.signatureName}>
-                {creator.full_name}
-                {creator.job_title ? ` - ${creator.job_title}` : ''}
-              </Text>
-              <Text style={s.signatureCompany}>{company.company_name}</Text>
-            </View>
-          )}
 
         </View>
 

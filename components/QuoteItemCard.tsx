@@ -14,19 +14,23 @@ interface Props {
   onAutoSave?: () => Promise<{ quoteId: string; dbId: string } | null>
 }
 
-const isCustomUnit = (unit: string) =>
-  unit !== '' && !(PREDEFINED_UNITS as readonly string[]).includes(unit)
+const isPredefinedUnit = (unit: string) =>
+  (PREDEFINED_UNITS as readonly string[]).includes(unit)
 
 export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAutoSave }: Props) {
   const [autoSaving, setAutoSaving] = useState(false)
+  // Track custom mode in local state — can't derive from item.unit alone because
+  // unit is '' when custom mode is active but the user hasn't typed yet.
+  const [customMode, setCustomMode] = useState(() => !isPredefinedUnit(item.unit))
   const total = calcItemTotal(item.quantity, item.unit_price)
-  const isCustom = isCustomUnit(item.unit)
-  const selectValue = isCustom ? '__custom__' : item.unit
+  const selectValue = customMode ? '__custom__' : item.unit
 
   const handleUnitSelect = (value: string) => {
     if (value === '__custom__') {
+      setCustomMode(true)
       onChange({ unit: '' })
     } else {
+      setCustomMode(false)
       onChange({ unit: value })
     }
   }
@@ -82,14 +86,18 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
           ))}
           <option value="__custom__">אחר...</option>
         </select>
-        {isCustom && (
-          <input
-            type="text"
-            value={item.unit}
-            onChange={(e) => onChange({ unit: e.target.value })}
-            className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            placeholder="הזן יחידה מותאמת"
-          />
+        {customMode && (
+          <div className="mt-2">
+            <label className="block text-xs text-gray-500 mb-1">יחידת מידה מותאמת</label>
+            <input
+              type="text"
+              value={item.unit}
+              onChange={(e) => onChange({ unit: e.target.value })}
+              autoFocus
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              placeholder="הזן יחידת מידה..."
+            />
+          </div>
         )}
       </div>
 
