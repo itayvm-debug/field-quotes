@@ -54,16 +54,38 @@ export async function prepareQuotePdfFile(
 ): Promise<PreparedShare> {
   const res = await fetch(`/api/quotes/${quoteId}/pdf`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const blob = await res.blob()
+
+  // arrayBuffer guarantees raw bytes; res.blob() may return empty MIME type on some browsers/iOS.
+  const arrayBuffer = await res.arrayBuffer()
+
+  // Validate that the response is actually a PDF (not an HTML error page or empty body).
+  const magic = new TextDecoder().decode(arrayBuffer.slice(0, 4))
+  if (magic !== '%PDF') {
+    console.error('[shareQuotePdf] not a PDF — magic bytes:', JSON.stringify(magic), 'status:', res.status, 'content-type:', res.headers.get('content-type'))
+    throw new Error('Response is not a valid PDF')
+  }
+
+  const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
+
   // Mobile: Hebrew filename works correctly in iOS/Android share sheet.
   // Desktop: use ASCII fallback — WhatsApp Web garbles non-ASCII filenames.
   const filename = isMobileDevice()
     ? buildPdfFilename(quoteNumber, clientName)
     : buildAsciiFallbackFilename(quoteNumber)
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[shareQuotePdf] share filename:', filename)
-  }
-  const file = new File([blob], filename, { type: 'application/pdf' })
+
+  const file = new File([pdfBlob], filename, { type: 'application/pdf' })
+
+  // Diagnostics — intentionally not gated by NODE_ENV so they appear in production Safari console.
+  console.log('[shareQuotePdf]', {
+    responseStatus: res.status,
+    responseContentType: res.headers.get('content-type'),
+    blobType: pdfBlob.type,
+    blobSize: pdfBlob.size,
+    fileName: filename,
+    fileType: file.type,
+    fileSize: file.size,
+  })
+
   const title = 'הצעת מחיר'
   const textLines: string[] = []
   if (clientName) textLines.push(`לכבוד: ${clientName}`)
