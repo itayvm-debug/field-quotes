@@ -106,7 +106,7 @@ const s = StyleSheet.create({
     fontFamily: 'Heebo',
     fontSize: 9,
     paddingTop: 0,
-    paddingBottom: 50,
+    paddingBottom: 40,
     paddingHorizontal: 0,
     color: BLACK,
     backgroundColor: WHITE,
@@ -472,15 +472,48 @@ const s = StyleSheet.create({
     height: 3,
     backgroundColor: ORANGE,
   },
-  footerText: {
-    textAlign: 'center',
-    fontSize: 7,
-    color: GRAY_TEXT,
-    paddingVertical: 6,
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
     paddingHorizontal: 28,
     backgroundColor: GRAY_LIGHT,
   },
+  footerText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 7,
+    color: GRAY_TEXT,
+  },
+  footerPageNum: {
+    width: 60,
+    fontSize: 7,
+    color: GRAY_TEXT,
+    textAlign: 'right' as never,
+  },
 })
+
+// ── Inline bold renderer — parses **text** markers ────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderBoldText(rawText: string, style: any) {
+  const text = fixRtlText(rawText)
+  const segments = text.split(/(\*\*[^*\n]+\*\*)/g)
+  if (segments.length === 1) {
+    return <Text style={style}>{text}</Text>
+  }
+  return (
+    <Text style={style}>
+      {segments.map((seg, i) =>
+        seg.startsWith('**') && seg.endsWith('**') ? (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          <Text key={i} style={{ fontWeight: 'bold' as any }}>{seg.slice(2, -2)}</Text>
+        ) : (
+          <Text key={i}>{seg}</Text>
+        )
+      )}
+    </Text>
+  )
+}
 
 // ── Section title helper ───────────────────────────────────────────────────────
 function SectionTitle({ children }: { children: string }) {
@@ -609,7 +642,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
                     <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
                     <View style={s.colDesc}>
                       {isOptional && <Text style={s.optionalLabel}>אופציה *‏</Text>}
-                      <Text style={s.tdText}>{fixRtlText(item.description)}</Text>
+                      {renderBoldText(item.description, s.tdText)}
                     </View>
                     <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
                   </View>
@@ -711,9 +744,16 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
         {/* ── Footer ──────────────────────────────────────────────────── */}
         <View style={s.footer} fixed>
           <View style={s.footerLine} />
-          {company.footer_text ? (
-            <Text style={s.footerText}>{company.footer_text}</Text>
-          ) : null}
+          <View style={s.footerRow}>
+            <View style={{ width: 60 }} />
+            <Text style={s.footerText}>{company.footer_text || ''}</Text>
+            <Text
+              style={s.footerPageNum}
+              render={({ pageNumber, totalPages }) =>
+                `עמוד ${pageNumber} מתוך ${totalPages}`
+              }
+            />
+          </View>
         </View>
       </Page>
     </Document>

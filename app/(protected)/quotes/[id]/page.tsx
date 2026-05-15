@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import React from 'react'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
@@ -11,6 +12,22 @@ import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
 
 const fixRtlText = (text: string) =>
   text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
+
+function renderBoldHtml(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*\n]+\*\*)/g)
+  if (parts.length === 1) return text
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith('**') && part.endsWith('**') ? (
+          <strong key={i}>{part.slice(2, -2)}</strong>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  )
+}
 
 interface Props {
   params: Promise<{ id: string }>
@@ -178,7 +195,7 @@ export default async function QuoteViewPage({ params }: Props) {
                         </span>
                       )}
                     </div>
-                    <p className="font-medium text-gray-900">{item.description || '(ללא תיאור)'}</p>
+                    <p className="font-medium text-gray-900">{item.description ? renderBoldHtml(item.description) : '(ללא תיאור)'}</p>
                     {item.notes && <p className="text-xs text-gray-400 mt-1">{item.notes}</p>}
                   </div>
                   <div className="text-left shrink-0">
