@@ -4,6 +4,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 import { QuotePDF } from '@/lib/pdf/QuotePDF'
 import type { PdfItem, PdfItemImage, PdfCreator } from '@/lib/pdf/QuotePDF'
+import { buildQuotePdfFilename } from '@/lib/share/shareQuotePdf'
 
 export const dynamic = 'force-dynamic'
 
@@ -147,11 +148,7 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(pdfElement as any)
 
-    // ASCII-only filename to avoid first-open rendering issues on iOS Mail / WhatsApp.
-    const asciiFallback = quote.quote_number
-      ? `quote-${quote.quote_number}.pdf`
-      : `quote-${id.slice(0, 8)}.pdf`
-    const disposition = `inline; filename="${asciiFallback}"`
+    const disposition = `inline; filename="${buildQuotePdfFilename(quote.quote_number)}"`
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const blob = new Blob([buffer as any], { type: 'application/pdf' })

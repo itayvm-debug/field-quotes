@@ -10,33 +10,12 @@ export type ShareResult =
   | { status: 'no-support' }
   | { status: 'error'; message: string }
 
-function sanitizePart(s: string): string {
-  return s.replace(/[/\\:*?"<>|]/g, '').trim().slice(0, 60)
-}
-
-// Hebrew filename — used for download (via Content-Disposition) and iOS share.
-export function buildPdfFilename(
-  quoteNumber: string | null | undefined,
-  clientName?: string | null,
-): string {
-  const parts: string[] = ['הצעת מחיר']
-  if (clientName) {
-    const clean = sanitizePart(clientName)
-    if (clean) parts.push(clean)
-  }
-  if (quoteNumber) {
-    const clean = sanitizePart(quoteNumber)
-    if (clean) parts.push(clean)
-  }
-  return parts.join(' - ') + '.pdf'
-}
-
-// ASCII fallback for desktop Web Share.
-// WhatsApp Web on desktop decodes UTF-8 filename bytes as Latin-1, producing garbled text.
-// iOS share sheet handles Hebrew correctly so the fallback is only applied on non-mobile.
-function buildAsciiFallbackFilename(quoteNumber: string | null | undefined): string {
-  const num = quoteNumber ? sanitizePart(quoteNumber) : ''
-  return num ? `quote-${num}.pdf` : 'quote.pdf'
+// Single source of truth for PDF filenames — used by the API route (Content-Disposition),
+// share helper (File object), and download helper.
+// Format: natan-valdman-price-quote-{quoteNumber}.pdf
+export function buildQuotePdfFilename(quoteNumber: string | null | undefined): string {
+  const num = quoteNumber ? quoteNumber.replace(/[/\\:*?"<>|]/g, '').trim().slice(0, 60) : ''
+  return num ? `natan-valdman-price-quote-${num}.pdf` : 'natan-valdman-price-quote.pdf'
 }
 
 // Step 1 — fetch PDF and build File. Call this when user first taps the share button.
@@ -61,11 +40,7 @@ export async function prepareQuotePdfFile(
   }
 
   const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
-
-  // ASCII-only filename for stability across iOS Mail, WhatsApp, and Android.
-  // Hebrew filename caused first-open rendering failures on iOS despite content being valid.
-  const filename = buildAsciiFallbackFilename(quoteNumber)
-
+  const filename = buildQuotePdfFilename(quoteNumber)
   const file = new File([pdfBlob], filename, { type: 'application/pdf' })
 
   // Diagnostics — intentionally not gated by NODE_ENV so they appear in production Safari console.
@@ -107,10 +82,10 @@ export function sharePreparedFile(prepared: PreparedShare): Promise<ShareResult>
 }
 
 // Download via direct API URL — never creates blob: URLs
-export function triggerApiDownload(quoteId: string, filename: string): void {
+export function triggerApiDownload(quoteId: string, quoteNumber?: string | null): void {
   const a = document.createElement('a')
   a.href = `/api/quotes/${quoteId}/pdf`
-  a.download = filename
+  a.download = buildQuotePdfFilename(quoteNumber)
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
