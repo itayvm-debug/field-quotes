@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { QuoteItemCard } from './QuoteItemCard'
 import { QuoteSummary } from './QuoteSummary'
+import { FieldAutocomplete } from './FieldAutocomplete'
 import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
 
 interface Props {
@@ -338,19 +339,31 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
           <h2 className="font-semibold text-gray-700">פרטי לקוח</h2>
           <Field label="שם לקוח">
-            <input type="text" value={header.client_name}
-              onChange={(e) => setHeaderField('client_name', e.target.value)}
-              className={inputCls} placeholder="שם הלקוח" />
+            <FieldAutocomplete
+              field="client_name"
+              value={header.client_name}
+              onChange={(v) => setHeaderField('client_name', v)}
+              placeholder="שם הלקוח"
+              className={inputCls}
+            />
           </Field>
           <Field label="כתובת / פרויקט">
-            <input type="text" value={header.client_address}
-              onChange={(e) => setHeaderField('client_address', e.target.value)}
-              className={inputCls} placeholder="כתובת האתר" />
+            <FieldAutocomplete
+              field="client_address"
+              value={header.client_address}
+              onChange={(v) => setHeaderField('client_address', v)}
+              placeholder="כתובת האתר"
+              className={inputCls}
+            />
           </Field>
           <Field label="איש קשר">
-            <input type="text" value={header.client_contact}
-              onChange={(e) => setHeaderField('client_contact', e.target.value)}
-              className={inputCls} placeholder="שם איש קשר וטלפון" />
+            <FieldAutocomplete
+              field="client_contact"
+              value={header.client_contact}
+              onChange={(v) => setHeaderField('client_contact', v)}
+              placeholder="שם איש קשר וטלפון"
+              className={inputCls}
+            />
           </Field>
           <Field label="תיאור כללי">
             <textarea value={header.project_description}

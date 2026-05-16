@@ -243,6 +243,10 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
         ) : (
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           filtered.map((quote: any) => {
+            const cardSubtitle: string =
+              (quote.client_address as string | null | undefined)?.trim() ||
+              (quote.project_description as string | null | undefined)?.trim() ||
+              ''
             const items = (quote.quote_items ?? []) as Array<{ quantity: number; unit_price: number }>
             const draftItems: QuoteItemDraft[] = items.map((i) => ({
               tempId: '',
@@ -301,9 +305,11 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
                       <p className="font-semibold text-gray-900 truncate">
                         {quote.client_name || '(ללא שם לקוח)'}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-snug">
-                        {quote.project_description || 'ללא תיאור עבודה'}
-                      </p>
+                      {cardSubtitle && (
+                        <p className="text-xs text-gray-500 mt-0.5 truncate leading-snug">
+                          {cardSubtitle}
+                        </p>
+                      )}
                       {quote.overpayment_note && (
                         <p className="text-[11px] text-amber-600 mt-0.5 truncate">
                           חריגים: {quote.overpayment_note}
