@@ -119,8 +119,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 28,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
   },
   topBandLeft: {
     flexDirection: 'column',
@@ -161,7 +161,7 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 28,
-    paddingVertical: 8,
+    paddingVertical: 6,
     backgroundColor: GRAY_LIGHT,
     borderBottomWidth: 1,
     borderBottomColor: GRAY_MID,
@@ -193,7 +193,7 @@ const s = StyleSheet.create({
   // ── Body ─────────────────────────────────────────────────────────────────────
   body: {
     paddingHorizontal: 28,
-    paddingTop: 10,
+    paddingTop: 8,
   },
 
   // ── Client section ──────────────────────────────────────────────────────────
@@ -201,7 +201,7 @@ const s = StyleSheet.create({
     backgroundColor: GRAY_LIGHT,
     borderRadius: 4,
     padding: 8,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -231,7 +231,6 @@ const s = StyleSheet.create({
     fontSize: 7.5,
     color: GRAY_TEXT,
     textAlign: 'right',
-    marginLeft: 4,
   },
   fieldValue: {
     fontSize: 9,
@@ -247,14 +246,14 @@ const s = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#F2F2F2',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 6,
     borderBottomWidth: 2,
     borderBottomColor: ORANGE,
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#C0C0C0',
@@ -702,34 +701,43 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
         {/* ── Body ────────────────────────────────────────────────────── */}
         <View style={s.body}>
 
-          {/* ── Client info ─────────────────────────────────────────── */}
+          {/* ── Client info — 2-column layout to reduce vertical height ── */}
           <View style={s.sectionCard}>
             <SectionTitle>פרטי לקוח</SectionTitle>
-            <View style={{ gap: 4 }}>
-              <View>
-                <Text style={s.fieldLabel}>לכבוד</Text>
-                <Text style={[s.fieldValue, { fontSize: 10 }]}>{quote.client_name || '—'}</Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+
+              {/* LEFT column (visual left = secondary info): כתובת + תיאור פרויקט */}
+              <View style={{ flex: 1, gap: 4 }}>
+                {quote.client_address ? (
+                  <View>
+                    <Text style={s.fieldLabel}>כתובת העבודה</Text>
+                    <Text style={s.fieldValue}>{quote.client_address}</Text>
+                  </View>
+                ) : null}
+                {quote.project_description ? (
+                  <View>
+                    <Text style={s.fieldLabel}>תיאור הפרויקט</Text>
+                    <Text style={[s.fieldValue, { fontWeight: 'normal' as never }]}>
+                      {fixRtlText(quote.project_description)}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              {quote.client_contact ? (
+
+              {/* RIGHT column (visual right = primary info): לכבוד + איש קשר */}
+              <View style={{ flex: 1, gap: 4 }}>
                 <View>
-                  <Text style={s.fieldLabel}>איש קשר</Text>
-                  <Text style={s.fieldValue}>{quote.client_contact}</Text>
+                  <Text style={s.fieldLabel}>לכבוד</Text>
+                  <Text style={[s.fieldValue, { fontSize: 10 }]}>{quote.client_name || '—'}</Text>
                 </View>
-              ) : null}
-              {quote.client_address ? (
-                <View>
-                  <Text style={s.fieldLabel}>כתובת העבודה</Text>
-                  <Text style={s.fieldValue}>{quote.client_address}</Text>
-                </View>
-              ) : null}
-              {quote.project_description ? (
-                <View>
-                  <Text style={s.fieldLabel}>תיאור הפרויקט</Text>
-                  <Text style={[s.fieldValue, { fontWeight: 'normal' as never }]}>
-                    {fixRtlText(quote.project_description)}
-                  </Text>
-                </View>
-              ) : null}
+                {quote.client_contact ? (
+                  <View>
+                    <Text style={s.fieldLabel}>איש קשר</Text>
+                    <Text style={s.fieldValue}>{quote.client_contact}</Text>
+                  </View>
+                ) : null}
+              </View>
+
             </View>
           </View>
 
