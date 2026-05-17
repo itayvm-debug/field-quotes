@@ -697,15 +697,15 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
       ) : null}
       {creator && quote.status !== 'draft' ? (
         <View style={s.signatureSection}>
-          {creator.signature_url ? (
-            <Image src={creator.signature_url} style={s.signatureImage} />
-          ) : null}
           <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
           <Text style={s.signatureName}>
             {creator.full_name}
             {creator.job_title ? ` - ${creator.job_title}` : ''}
           </Text>
           <Text style={s.signatureCompany}>{company.company_name}</Text>
+          {creator.signature_url ? (
+            <Image src={creator.signature_url} style={s.signatureImage} />
+          ) : null}
         </View>
       ) : null}
     </View>
