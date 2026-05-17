@@ -349,7 +349,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: GRAY_MID,
   },
@@ -367,7 +367,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 5,
     backgroundColor: ORANGE,
   },
   summaryTotalLabel: {
@@ -410,8 +410,8 @@ const s = StyleSheet.create({
   signatureSection: {
     borderTopWidth: 1,
     borderTopColor: GRAY_MID,
-    paddingTop: 10,
-    marginBottom: 10,
+    paddingTop: 6,
+    marginBottom: 6,
     alignItems: 'flex-end',
   },
   signatureImage: {
@@ -653,6 +653,64 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
     )
   }
 
+  // Summary + payment terms side-by-side + exclusions + signature.
+  // Shared between single-page and continuation-page paths.
+  const renderSummaryBlock = () => (
+    <View wrap={false}>
+      {/* Summary box (LEFT) and payment terms (RIGHT) at the same height */}
+      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 6, alignItems: 'flex-start' }}>
+        <View style={s.summaryBox}>
+          <View style={s.summaryRow}>
+            <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
+            <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
+          </View>
+          <View style={s.summaryRow}>
+            <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
+            <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
+          </View>
+          <View style={s.summaryTotalRow}>
+            <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
+            <Text style={s.summaryTotalLabel}>
+              {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
+            </Text>
+          </View>
+        </View>
+        {quote.payment_terms ? (
+          <View style={{ flex: 1, paddingTop: 2 }}>
+            <Text style={s.termLabel}>תנאי תשלום</Text>
+            <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
+          </View>
+        ) : null}
+      </View>
+      {hasOptional && (
+        <View style={s.optionalFootnote}>
+          <Text style={s.optionalFootnoteText}>
+            {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
+          </Text>
+        </View>
+      )}
+      {quote.exclusions ? (
+        <View style={{ borderTopWidth: 1, borderTopColor: GRAY_MID, paddingTop: 5, marginTop: 4, marginBottom: 6 }}>
+          <Text style={s.termLabel}>החרגות / הערות</Text>
+          <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
+        </View>
+      ) : null}
+      {creator && quote.status !== 'draft' ? (
+        <View style={s.signatureSection}>
+          {creator.signature_url ? (
+            <Image src={creator.signature_url} style={s.signatureImage} />
+          ) : null}
+          <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
+          <Text style={s.signatureName}>
+            {creator.full_name}
+            {creator.job_title ? ` - ${creator.job_title}` : ''}
+          </Text>
+          <Text style={s.signatureCompany}>{company.company_name}</Text>
+        </View>
+      ) : null}
+    </View>
+  )
+
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -776,128 +834,11 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               </View>
 
               {/* Summary + Terms + Signature */}
-              <View wrap={false}>
-                <View style={s.summaryWrapper}>
-                  <View style={s.summaryBox}>
-                    <View style={s.summaryRow}>
-                      <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
-                      <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
-                    </View>
-                    <View style={s.summaryRow}>
-                      <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
-                      <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
-                    </View>
-                    <View style={s.summaryTotalRow}>
-                      <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
-                      <Text style={s.summaryTotalLabel}>
-                        {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
-                      </Text>
-                    </View>
-                  </View>
-                  {hasOptional && (
-                    <View style={s.optionalFootnote}>
-                      <Text style={s.optionalFootnoteText}>
-                        {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                {(quote.payment_terms || quote.exclusions) && (
-                  <View style={s.termSection}>
-                    {quote.payment_terms ? (
-                      <View style={s.termRow}>
-                        <Text style={s.termLabel}>תנאי תשלום</Text>
-                        <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
-                      </View>
-                    ) : null}
-                    {quote.exclusions ? (
-                      <View style={s.termRow}>
-                        <Text style={s.termLabel}>החרגות / הערות</Text>
-                        <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                )}
-                {creator && quote.status !== 'draft' && (
-                  <View style={s.signatureSection}>
-                    {creator.signature_url ? (
-                      <Image src={creator.signature_url} style={s.signatureImage} />
-                    ) : null}
-                    <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
-                    <Text style={s.signatureName}>
-                      {creator.full_name}
-                      {creator.job_title ? ` - ${creator.job_title}` : ''}
-                    </Text>
-                    <Text style={s.signatureCompany}>{company.company_name}</Text>
-                  </View>
-                )}
-              </View>
+              {renderSummaryBlock()}
 
             </View>
           ) : (
-
-            /* ── Summary + Terms + Signature (single-page path) ── */
-            <View wrap={false}>
-
-              <View style={s.summaryWrapper}>
-                <View style={s.summaryBox}>
-                  <View style={s.summaryRow}>
-                    <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
-                    <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
-                  </View>
-                  <View style={s.summaryRow}>
-                    <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
-                    <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
-                  </View>
-                  <View style={s.summaryTotalRow}>
-                    <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
-                    <Text style={s.summaryTotalLabel}>
-                      {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
-                    </Text>
-                  </View>
-                </View>
-                {hasOptional && (
-                  <View style={s.optionalFootnote}>
-                    <Text style={s.optionalFootnoteText}>
-                      {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {(quote.payment_terms || quote.exclusions) && (
-                <View style={s.termSection}>
-                  {quote.payment_terms ? (
-                    <View style={s.termRow}>
-                      <Text style={s.termLabel}>תנאי תשלום</Text>
-                      <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
-                    </View>
-                  ) : null}
-                  {quote.exclusions ? (
-                    <View style={s.termRow}>
-                      <Text style={s.termLabel}>החרגות / הערות</Text>
-                      <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              )}
-
-              {creator && quote.status !== 'draft' && (
-                <View style={s.signatureSection}>
-                  {creator.signature_url ? (
-                    <Image src={creator.signature_url} style={s.signatureImage} />
-                  ) : null}
-                  <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
-                  <Text style={s.signatureName}>
-                    {creator.full_name}
-                    {creator.job_title ? ` - ${creator.job_title}` : ''}
-                  </Text>
-                  <Text style={s.signatureCompany}>{company.company_name}</Text>
-                </View>
-              )}
-
-            </View>
-
+            renderSummaryBlock()
           )}
 
         </View>
