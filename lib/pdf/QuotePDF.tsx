@@ -584,6 +584,56 @@ function SectionTitle({ children }: { children: string }) {
   )
 }
 
+// ── Page-split helpers ────────────────────────────────────────────────────────
+// Height constants (pt). Measured from stylesheet values; used before render to
+// bucket items into pages so react-pdf never auto-breaks mid-table.
+const CHARS_PER_DESC_LINE = 42   // desc column ~232pt wide at fontSize 8.5
+const LINE_HEIGHT_PT       = 11  // fontSize 8.5 * ~1.3
+const ITEM_BASE_HEIGHT_PT  = 22  // tableRow paddingVertical:6 + 1 desc line
+const OPTIONAL_LABEL_EXTRA = 10  // optionalLabel fontSize 6.5 + marginBottom
+const NOTES_BASE_HEIGHT_PT = 12  // notesRow paddingBottom:4 + 1 line at fontSize 7.5
+const NOTES_LINE_HEIGHT_PT = 10  // fontSize 7.5 * 1.3
+const NOTES_CHARS_PER_LINE = 45
+const IMAGE_GRID_HEIGHT_PT = 74  // 64px image + paddingBottom:6 + gap
+
+function estimateItemHeight(item: PdfItem): number {
+  const descLines = Math.max(1, Math.ceil(item.description.length / CHARS_PER_DESC_LINE))
+  let h = ITEM_BASE_HEIGHT_PT + (descLines - 1) * LINE_HEIGHT_PT
+  if (item.is_optional) h += OPTIONAL_LABEL_EXTRA
+  if (item.notes) {
+    const notesLines = Math.max(1, Math.ceil(item.notes.length / NOTES_CHARS_PER_LINE))
+    h += NOTES_BASE_HEIGHT_PT + (notesLines - 1) * NOTES_LINE_HEIGHT_PT
+  }
+  if (item.images.some((img) => img.include_in_pdf && img.signedUrl)) h += IMAGE_GRID_HEIGHT_PT
+  return h
+}
+
+function splitItemsForPages(
+  items: PdfItem[],
+  firstBudget: number,
+  contBudget: number,
+): PdfItem[][] {
+  if (items.length === 0) return [[]]
+  const pages: PdfItem[][] = []
+  let currentPage: PdfItem[] = []
+  let currentHeight = 0
+  let budget = firstBudget
+  for (const item of items) {
+    const h = estimateItemHeight(item)
+    if (currentPage.length > 0 && currentHeight + h > budget) {
+      pages.push(currentPage)
+      currentPage = [item]
+      currentHeight = h
+      budget = contBudget
+    } else {
+      currentPage.push(item)
+      currentHeight += h
+    }
+  }
+  if (currentPage.length > 0) pages.push(currentPage)
+  return pages
+}
+
 // ── PDF Document ───────────────────────────────────────────────────────────────
 export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFProps) {
   const requiredItems = items.filter((i) => !i.is_optional)
@@ -596,13 +646,16 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   const localLogo = path.join(process.cwd(), 'public', 'company-logo.png')
   const effectiveLogo = logoUrl ?? localLogo
 
-  // Heuristic: carry the last item to page 2 when the summary would otherwise be alone there.
-  // Triggers when: 3+ items AND at least one optional AND at least one description > 50 chars.
-  const hasLongDescription = items.some(i => i.description.length > 50)
-  const hasOptionalItem = items.some(i => i.is_optional)
-  const shouldCarryLast = items.length >= 3 && hasOptionalItem && hasLongDescription
-  const mainItems = shouldCarryLast ? items.slice(0, -1) : items
-  const carriedItem = shouldCarryLast ? items[items.length - 1] : null
+  // Pre-render split: bucket items into per-page arrays before render so
+  // react-pdf never auto-breaks mid-table. Budgets (pt) are usable item height
+  // per page after all fixed overhead (header, client card, summary reserve).
+  // A4 = 841pt; footer fixed = 40pt; measured from stylesheet heights.
+  const FIRST_PAGE_ITEMS_BUDGET = 476  // page 1: topBand+titleBar+clientCard+tableHeader+summaryReserve
+  const CONT_PAGE_ITEMS_BUDGET  = 638  // continuation: compactHeader+label+tableHeader+summaryReserve
+  const itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+  const itemPageOffsets = itemPages.map((_, i) =>
+    itemPages.slice(0, i).reduce((acc, p) => acc + p.length, 0)
+  )
 
   // Shared table header JSX — used in both the main table and the page-2 continuation
   const tableHeaderRow = (
@@ -799,47 +852,37 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
             </View>
           </View>
 
-          {/* ── Items table ─────────────────────────────────────────── */}
+          {/* ── Items table (page 1) ───────────────────────────────── */}
           <View style={s.tableContainer}>
             {tableHeaderRow}
-            {mainItems.map((item, idx) => renderItemRow(item, idx))}
+            {itemPages[0].map((item, idx) => renderItemRow(item, itemPageOffsets[0] + idx))}
           </View>
 
-          {/* ── Page 2: compact header + continued table + summary (heuristic split) ── */}
-          {carriedItem ? (
-            <View break>
-
-              {/* Compact continuation header */}
-              <View style={s.continuationBand}>
-                <View style={s.continuationBandLeft}>
-                  <Text style={s.continuationQuoteTitle}>הצעת מחיר</Text>
-                  <Text style={s.continuationQuoteNum}>{quote.quote_number ?? '—'}</Text>
+          {/* ── Continuation pages + summary ────────────────────────── */}
+          {itemPages.length === 1
+            ? renderSummaryBlock()
+            : itemPages.slice(1).map((pageItems, pi) => (
+                <View key={pi} break>
+                  <View style={s.continuationBand}>
+                    <View style={s.continuationBandLeft}>
+                      <Text style={s.continuationQuoteTitle}>הצעת מחיר</Text>
+                      <Text style={s.continuationQuoteNum}>{quote.quote_number ?? '—'}</Text>
+                    </View>
+                    <View style={s.continuationBandRight}>
+                      <Text style={s.continuationCompanyName}>{company.company_name}</Text>
+                      <Image src={effectiveLogo} style={s.logoSmall} />
+                    </View>
+                  </View>
+                  <View style={s.continuationOrangeLine} />
+                  <Text style={s.continuationLabel}>{'המשך טבלת סעיפים‏'}</Text>
+                  <View style={s.tableContainer}>
+                    {tableHeaderRow}
+                    {pageItems.map((item, idx) => renderItemRow(item, itemPageOffsets[pi + 1] + idx))}
+                  </View>
+                  {pi === itemPages.length - 2 && renderSummaryBlock()}
                 </View>
-                <View style={s.continuationBandRight}>
-                  <Text style={s.continuationCompanyName}>{company.company_name}</Text>
-                  <Image src={effectiveLogo} style={s.logoSmall} />
-                </View>
-              </View>
-              <View style={s.continuationOrangeLine} />
-
-              {/* Continuation label */}
-              <Text style={s.continuationLabel}>{'המשך טבלת סעיפים‏'}</Text>
-
-              {/* Repeated table header + carried item */}
-              <View style={s.tableContainer}>
-                {tableHeaderRow}
-                <View style={{ marginTop: 3 }}>
-                  {renderItemRow(carriedItem, items.length - 1)}
-                </View>
-              </View>
-
-              {/* Summary + Terms + Signature */}
-              {renderSummaryBlock()}
-
-            </View>
-          ) : (
-            renderSummaryBlock()
-          )}
+              ))
+          }
 
         </View>
 
