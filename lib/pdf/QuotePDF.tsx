@@ -608,6 +608,38 @@ function estimateItemHeight(item: PdfItem): number {
   return h
 }
 
+// Estimates the rendered height of the summary block (financial totals, payment
+// terms, optional footnote, exclusions, signature). Used to reserve space on the
+// last items page so the block never gets pushed alone to a new page.
+function estimateSummaryBlockHeight({
+  hasPaymentTerms,
+  hasOptionItems,
+  exclusionsText,
+  hasSignature,
+}: {
+  hasPaymentTerms: boolean
+  hasOptionItems: boolean
+  exclusionsText: string
+  hasSignature: boolean
+}): number {
+  // Financial summary box (3 rows ~66pt) + marginBottom:6 + some border/spacing
+  let h = 80
+  // Payment terms is side-by-side with summary box; may add height if text is long
+  if (hasPaymentTerms) h += 15
+  // Optional footnote: marginTop:6 + 1 line text
+  if (hasOptionItems) h += 22
+  // Exclusions: overhead (borderTop + padding + margins + label ~36pt) + content lines
+  if (exclusionsText) {
+    const lines = Math.max(1, Math.ceil(exclusionsText.length / 55))
+    h += 36 + lines * 12
+  }
+  // Signature block: greeting + name + company + image
+  if (hasSignature) h += 96
+  // Safety buffer for rounding and rendering variance
+  h += 40
+  return h
+}
+
 function splitItemsForPages(
   items: PdfItem[],
   firstBudget: number,
@@ -648,11 +680,30 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
 
   // Pre-render split: bucket items into per-page arrays before render so
   // react-pdf never auto-breaks mid-table. Budgets (pt) are usable item height
-  // per page after all fixed overhead (header, client card, summary reserve).
-  // A4 = 841pt; footer fixed = 40pt; measured from stylesheet heights.
-  const FIRST_PAGE_ITEMS_BUDGET = 476  // page 1: topBand+titleBar+clientCard+tableHeader+summaryReserve
-  const CONT_PAGE_ITEMS_BUDGET  = 638  // continuation: compactHeader+label+tableHeader+summaryReserve
-  const itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+  // per page after fixed overhead and a dynamic summary reserve.
+  // A4 = 841pt; paddingBottom:40 → usable = 801pt.
+  // Page 1 overhead: topBand(~82) + orangeLine(4) + titleBar(~44) + body.paddingTop(8) + clientCard(~100) + tableHeader(~20) ≈ 245pt (kept from original).
+  // Cont overhead:   continuationBand(~32) + orangeLine(3) + contLabel(~23) + tableHeader(~20) ≈ 83pt.
+  const summaryReserve = estimateSummaryBlockHeight({
+    hasPaymentTerms: !!quote.payment_terms,
+    hasOptionItems: hasOptional,
+    exclusionsText: quote.exclusions ?? '',
+    hasSignature: !!(creator && quote.status !== 'draft'),
+  })
+  const FIRST_PAGE_ITEMS_BUDGET = Math.max(200, 801 - 245 - summaryReserve)
+  const CONT_PAGE_ITEMS_BUDGET  = Math.max(300, 801 - 83  - summaryReserve)
+  let itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+
+  // Post-processing safety net: if all items landed on page 1 but their
+  // combined height + summary reserve exceeds first-page capacity, force the
+  // last item onto a continuation page so the summary always has a companion.
+  if (itemPages.length === 1 && items.length > 1) {
+    const totalItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
+    if (totalItemsH + summaryReserve > 801 - 245) {
+      itemPages = [items.slice(0, -1), [items[items.length - 1]]]
+    }
+  }
+
   const itemPageOffsets = itemPages.map((_, i) =>
     itemPages.slice(0, i).reduce((acc, p) => acc + p.length, 0)
   )
