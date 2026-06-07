@@ -255,6 +255,10 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 3,
     paddingHorizontal: 6,
+  },
+  // Bottom border lives on the ITEM WRAPPER (not tableRow) so the separator line
+  // appears after all item content (description + notes + images), not just the first row.
+  itemWrapper: {
     borderBottomWidth: 1,
     borderBottomColor: '#C0C0C0',
   },
@@ -279,6 +283,7 @@ const s = StyleSheet.create({
   },
   notesRow: {
     paddingHorizontal: 6,
+    paddingTop: 2,
     paddingBottom: 4,
     backgroundColor: '#FAFAFA',
   },
@@ -290,12 +295,13 @@ const s = StyleSheet.create({
 
   // RTL column order (visual right→left): מס׳ | תיאור עבודה | יח׳ | כמות | מחיר יח׳ | סה״כ
   // Fixed widths (not flex) so react-pdf wraps text within a hard boundary.
+  // Total: 17+17+8+9+44+5 = 100%
   colTotal: { width: '17%' },
   colPrice: { width: '17%' },
   colQty:   { width: '8%' },
-  colUnit:  { width: '8%' },
-  colDesc:  { width: '44%', paddingLeft: 5 },  // paddingLeft = gap between description and יח׳
-  colNum:   { width: '6%' },
+  colUnit:  { width: '9%' },                                          // +1% for clearer יח׳ column
+  colDesc:  { width: '44%', paddingLeft: 10, paddingRight: 5 },       // left gap vs יח׳, right gap vs מס׳
+  colNum:   { width: '5%' },                                          // -1% to balance
 
   tableRowOptional: {
     backgroundColor: '#FFFBEB',
@@ -588,11 +594,11 @@ function SectionTitle({ children }: { children: string }) {
 // ── Page-split helpers ────────────────────────────────────────────────────────
 // Height constants (pt). Measured from stylesheet values; used before render to
 // bucket items into pages so react-pdf never auto-breaks mid-table.
-const CHARS_PER_DESC_LINE = 42   // desc column ~232pt wide at fontSize 8.5
+const CHARS_PER_DESC_LINE = 40   // desc column effective ~222pt (44% of 539 − paddingLeft:10 − paddingRight:5)
 const LINE_HEIGHT_PT       = 11  // fontSize 8.5 * ~1.3
-const ITEM_BASE_HEIGHT_PT  = 22  // tableRow paddingVertical:6 + 1 desc line
+const ITEM_BASE_HEIGHT_PT  = 22  // tableRow paddingVertical:6 + 1 desc line + itemWrapper border
 const OPTIONAL_LABEL_EXTRA = 10  // optionalLabel fontSize 6.5 + marginBottom
-const NOTES_BASE_HEIGHT_PT = 12  // notesRow paddingBottom:4 + 1 line at fontSize 7.5
+const NOTES_BASE_HEIGHT_PT = 14  // notesRow paddingTop:2 + paddingBottom:4 + 1 line at fontSize 7.5
 const NOTES_LINE_HEIGHT_PT = 10  // fontSize 7.5 * 1.3
 const NOTES_CHARS_PER_LINE = 45
 const IMAGE_ROW_HEIGHT_PT  = 70  // 64pt image + 6pt paddingBottom per row
@@ -755,7 +761,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
     const isOptional = item.is_optional ?? false
     const hasPdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl).length > 0
     return (
-      <View key={item.item_number} wrap={false}>
+      <View key={item.item_number} wrap={false} style={s.itemWrapper}>
         <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}, isOptional ? s.tableRowOptional : {}]}>
           <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
           <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
