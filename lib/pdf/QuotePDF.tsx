@@ -515,7 +515,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginRight: -12,
+    marginRight: -18,
   },
   continuationOrangeLine: {
     height: 3,
@@ -837,7 +837,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               <Text style={s.companyDetail}>{company.email}</Text>
             ) : null}
           </View>
-          <View style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginRight: -12 }}>
+          <View style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginRight: -18 }}>
             <Image src={effectiveLogo} style={s.logo} />
           </View>
         </View>
