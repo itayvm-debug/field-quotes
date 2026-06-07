@@ -144,8 +144,8 @@ const s = StyleSheet.create({
     marginTop: 1,
   },
   logo: {
-    height: 42,
-    width: 90,
+    height: 54,
+    width: 112,
     objectFit: 'contain',
   },
 
@@ -836,7 +836,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               <Text style={s.companyDetail}>{company.email}</Text>
             ) : null}
           </View>
-          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' }}>
             <Image src={effectiveLogo} style={s.logo} />
           </View>
         </View>
