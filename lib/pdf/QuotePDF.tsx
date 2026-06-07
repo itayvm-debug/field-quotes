@@ -595,7 +595,8 @@ const OPTIONAL_LABEL_EXTRA = 10  // optionalLabel fontSize 6.5 + marginBottom
 const NOTES_BASE_HEIGHT_PT = 12  // notesRow paddingBottom:4 + 1 line at fontSize 7.5
 const NOTES_LINE_HEIGHT_PT = 10  // fontSize 7.5 * 1.3
 const NOTES_CHARS_PER_LINE = 45
-const IMAGE_GRID_HEIGHT_PT = 74  // 64px image + paddingBottom:6 + gap
+const IMAGE_ROW_HEIGHT_PT  = 70  // 64pt image + 6pt paddingBottom per row
+const IMAGES_PER_ROW       = 7   // floor((539pt usable − 12pt padding) / (64+4)pt per image)
 
 function estimateItemHeight(item: PdfItem): number {
   const descLines = Math.max(1, Math.ceil(item.description.length / CHARS_PER_DESC_LINE))
@@ -605,7 +606,11 @@ function estimateItemHeight(item: PdfItem): number {
     const notesLines = Math.max(1, Math.ceil(item.notes.length / NOTES_CHARS_PER_LINE))
     h += NOTES_BASE_HEIGHT_PT + (notesLines - 1) * NOTES_LINE_HEIGHT_PT
   }
-  if (item.images.some((img) => img.include_in_pdf && img.signedUrl)) h += IMAGE_GRID_HEIGHT_PT
+  const pdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl)
+  if (pdfImages.length > 0) {
+    const imageRows = Math.ceil(pdfImages.length / IMAGES_PER_ROW)
+    h += imageRows * IMAGE_ROW_HEIGHT_PT + (imageRows - 1) * 4  // rows + inter-row gaps
+  }
   return h
 }
 
@@ -679,29 +684,51 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   const localLogo = path.join(process.cwd(), 'public', 'company-logo.png')
   const effectiveLogo = logoUrl ?? localLogo
 
-  // Pre-render split: bucket items into per-page arrays before render so
-  // react-pdf never auto-breaks mid-table. Budgets (pt) are usable item height
-  // per page after fixed overhead and a dynamic summary reserve.
-  // A4 = 841pt; paddingBottom:40 → usable = 801pt.
-  // Page 1 overhead: topBand(~82) + orangeLine(4) + titleBar(~44) + body.paddingTop(8) + clientCard(~100) + tableHeader(~20) ≈ 245pt (kept from original).
-  // Cont overhead:   continuationBand(~32) + orangeLine(3) + contLabel(~23) + tableHeader(~20) ≈ 83pt.
   const summaryReserve = estimateSummaryBlockHeight({
     hasPaymentTerms: !!quote.payment_terms,
     hasOptionItems: hasOptional,
     exclusionsText: quote.exclusions ?? '',
     hasSignature: !!(creator && quote.status !== 'draft'),
   })
-  const FIRST_PAGE_ITEMS_BUDGET = Math.max(200, 801 - 245 - summaryReserve)
-  const CONT_PAGE_ITEMS_BUDGET  = Math.max(300, 801 - 83  - summaryReserve)
+
+  // Budgets are purely for table item rows — summaryReserve is NOT deducted here.
+  // Previously, subtracting it from every page's budget caused page 1 to be badly
+  // under-filled: the summary only appears on the last page, so reserving its space
+  // on every page (including page 1 when there are continuation pages) is wrong.
+  // A4 = 841pt; paddingBottom:40 → usable = 801pt.
+  // Page 1 overhead: topBand(~70) + orangeLine(4) + titleBar(~38) + body.paddingTop(8) + clientCard(~85) + tableHeader(~20) ≈ 245pt.
+  // Cont overhead:   continuationBand(~32) + orangeLine(3) + contLabel(~23) + tableHeader(~20) ≈ 83pt (unchanged).
+  const PAGE_USABLE             = 801
+  const FIRST_PAGE_ITEMS_BUDGET = Math.max(150, PAGE_USABLE - 245)  // ≈ 556pt
+  const CONT_PAGE_ITEMS_BUDGET  = Math.max(300, PAGE_USABLE - 83)   // ≈ 718pt
+
   let itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
 
-  // Post-processing safety net: if all items landed on page 1 but their
-  // combined height + summary reserve exceeds first-page capacity, force the
-  // last item onto a continuation page so the summary always has a companion.
-  if (itemPages.length === 1 && items.length > 1) {
-    const totalItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
-    if (totalItemsH + summaryReserve > 801 - 245) {
-      itemPages = [items.slice(0, -1), [items[items.length - 1]]]
+  // Ensure the last page has room for the summary block.
+  // If items on the last page + summaryReserve exceed that page's budget, spill
+  // the last item onto a new continuation page so the summary never overflows.
+  {
+    const lastIdx    = itemPages.length - 1
+    const lastBudget = lastIdx === 0 ? FIRST_PAGE_ITEMS_BUDGET : CONT_PAGE_ITEMS_BUDGET
+    const lastH      = itemPages[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
+    if (lastH + summaryReserve > lastBudget && itemPages[lastIdx].length > 1) {
+      const moved = itemPages[lastIdx].pop()!
+      itemPages.push([moved])
+    }
+  }
+
+  // Post-processing: if page 1 is under-utilised (<70% full) and page 2 has multiple
+  // items, pull items from page 2 to page 1 as long as they fit.
+  // Guard — skip when page 2 has only 1 item: that item was placed there by the
+  // summary spill above, and pulling it back would trigger the spill again (conflict).
+  if (itemPages.length > 1 && itemPages[1].length > 1) {
+    let page1H = itemPages[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
+    while (itemPages[1].length > 1 && page1H / FIRST_PAGE_ITEMS_BUDGET < 0.70) {
+      const candidate  = itemPages[1][0]
+      const candidateH = estimateItemHeight(candidate)
+      if (page1H + candidateH > FIRST_PAGE_ITEMS_BUDGET) break
+      itemPages[0].push(itemPages[1].shift()!)
+      page1H += candidateH
     }
   }
 
