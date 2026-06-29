@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { PREDEFINED_UNITS, type QuoteItemDraft } from '@/types'
 import { calcItemTotal, formatCurrency } from '@/lib/calculations'
 import { ItemImages } from './ItemImages'
+import { RichNotesEditor } from './RichNotesEditor'
 
 interface Props {
   item: QuoteItemDraft
@@ -25,38 +26,6 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
   const total = calcItemTotal(item.quantity, item.unit_price)
   const selectValue = customMode ? '__custom__' : item.unit
 
-  // Ref for the notes textarea — needed to read selectionStart/End before button click moves focus.
-  const notesRef = useRef<HTMLTextAreaElement>(null)
-
-  // Wraps the selected text in the notes textarea with the given markers.
-  // If nothing is selected, inserts a placeholder at the cursor position.
-  // Uses onMouseDown + preventDefault on buttons to keep textarea focus and preserve selection.
-  const applyFormat = (prefix: string, suffix: string, placeholder: string) => {
-    const el = notesRef.current
-    if (!el) return
-    const start = el.selectionStart
-    const end = el.selectionEnd
-    const text = item.notes ?? ''
-    let newValue: string
-    let newStart: number
-    let newEnd: number
-    if (start === end) {
-      const insert = `${prefix}${placeholder}${suffix}`
-      newValue = text.slice(0, start) + insert + text.slice(start)
-      newStart = start + prefix.length
-      newEnd = newStart + placeholder.length
-    } else {
-      const selected = text.slice(start, end)
-      newValue = text.slice(0, start) + `${prefix}${selected}${suffix}` + text.slice(end)
-      newStart = start + prefix.length
-      newEnd = end + prefix.length
-    }
-    onChange({ notes: newValue })
-    requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(newStart, newEnd)
-    })
-  }
 
   const handleUnitSelect = (value: string) => {
     if (value === '__custom__') {
@@ -162,42 +131,11 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
         </div>
       </div>
 
-      {/* Notes */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-1">
-            {/* onMouseDown + preventDefault keeps textarea focus so selectionStart/End stay valid */}
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); applyFormat('**', '**', 'טקסט מודגש') }}
-              className="font-bold text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition-colors"
-              title="הדגשה — עטוף טקסט מסומן ב-**"
-            >
-              B
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); applyFormat('__', '__', 'טקסט עם קו תחתון') }}
-              className="underline text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition-colors"
-              title="קו תחתון — עטוף טקסט מסומן ב-__"
-            >
-              U
-            </button>
-          </div>
-          <label className="text-xs text-gray-500">הערות (אופציונלי)</label>
-        </div>
-        <textarea
-          ref={notesRef}
-          value={item.notes}
-          onChange={(e) => onChange({ notes: e.target.value })}
-          rows={3}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
-          placeholder="הערות לסעיף זה..."
-        />
-        <p className="text-xs text-gray-400 mt-1">
-          <span className="font-bold">**טקסט**</span> להדגשה · <span className="underline">__טקסט__</span> לקו תחתון
-        </p>
-      </div>
+      {/* Notes — rich text editor (stores Markdown, displays formatted HTML) */}
+      <RichNotesEditor
+        value={item.notes ?? ''}
+        onChange={(v) => onChange({ notes: v })}
+      />
 
       {/* Optional toggle */}
       <div className="mb-3">
