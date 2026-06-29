@@ -10,6 +10,8 @@ import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COL
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
 import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
 
+import { parseFormattedText } from '@/lib/formatText'
+
 const fixRtlText = (text: string) =>
   text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
 
@@ -27,6 +29,16 @@ function renderBoldHtml(text: string): React.ReactNode {
       )}
     </>
   )
+}
+
+// Renders item notes with bold (**...**), underline (__...__), and newline support.
+function renderFormattedNotes(text: string): React.ReactNode {
+  const segments = parseFormattedText(text)
+  return segments.map((seg, i) => {
+    if (seg.bold) return <strong key={i}>{seg.text}</strong>
+    if (seg.underline) return <u key={i}>{seg.text}</u>
+    return <React.Fragment key={i}>{seg.text}</React.Fragment>
+  })
 }
 
 interface Props {
@@ -196,7 +208,11 @@ export default async function QuoteViewPage({ params }: Props) {
                       )}
                     </div>
                     <p className="font-medium text-gray-900">{item.description ? renderBoldHtml(item.description) : '(ללא תיאור)'}</p>
-                    {item.notes && <p className="text-xs text-gray-400 mt-1">{item.notes}</p>}
+                    {item.notes && (
+                      <p className="text-xs text-gray-400 mt-1 whitespace-pre-line">
+                        {renderFormattedNotes(item.notes)}
+                      </p>
+                    )}
                   </div>
                   <div className="text-left shrink-0">
                     <p className={`font-semibold text-sm ${(item as {is_optional?: boolean}).is_optional ? 'text-gray-400' : 'text-gray-900'}`}>

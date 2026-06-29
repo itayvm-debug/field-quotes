@@ -132,12 +132,12 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
       {/* Notes */}
       <div className="mb-3">
         <label className="block text-xs text-gray-500 mb-1">הערות (אופציונלי)</label>
-        <input
-          type="text"
+        <textarea
           value={item.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
-          placeholder="הערות לסעיף זה..."
+          rows={3}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+          placeholder={"הערות לסעיף זה...\nתמיכה ב-**הדגשה** ו-__קו תחתון__"}
         />
       </div>
 

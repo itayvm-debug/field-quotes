@@ -9,6 +9,7 @@ import {
   Font,
   StyleSheet,
 } from '@react-pdf/renderer'
+import { parseFormattedText } from '@/lib/formatText'
 
 // ── Local fonts (bundled in /public/fonts) ────────────────────────────────────
 const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
@@ -581,6 +582,24 @@ function renderBoldText(rawText: string, style: any) {
   )
 }
 
+// ── Formatted notes renderer — parses **bold**, __underline__, and \n ────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderFormattedNotesPdf(rawText: string, style: any) {
+  const segments = parseFormattedText(fixRtlText(rawText))
+  return (
+    <Text style={style}>
+      <Text>{'הערה: '}</Text>
+      {segments.map((seg, i) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s: any = {}
+        if (seg.bold) s.fontWeight = 'bold'
+        if (seg.underline) s.textDecoration = 'underline'
+        return <Text key={i} style={s}>{seg.text}</Text>
+      })}
+    </Text>
+  )
+}
+
 // ── Section title helper ───────────────────────────────────────────────────────
 function SectionTitle({ children }: { children: string }) {
   return (
@@ -609,8 +628,11 @@ function estimateItemHeight(item: PdfItem): number {
   let h = ITEM_BASE_HEIGHT_PT + (descLines - 1) * LINE_HEIGHT_PT
   if (item.is_optional) h += OPTIONAL_LABEL_EXTRA
   if (item.notes) {
-    const notesLines = Math.max(1, Math.ceil(item.notes.length / NOTES_CHARS_PER_LINE))
-    h += NOTES_BASE_HEIGHT_PT + (notesLines - 1) * NOTES_LINE_HEIGHT_PT
+    // Count wrap-lines from characters + explicit newlines (user can now type multi-line notes)
+    const explicitNewlines = (item.notes.match(/\n/g) ?? []).length
+    const charsWithoutBreaks = item.notes.replace(/\n/g, '').length
+    const wrapLines = Math.max(1, Math.ceil(charsWithoutBreaks / NOTES_CHARS_PER_LINE))
+    h += NOTES_BASE_HEIGHT_PT + (wrapLines - 1 + explicitNewlines) * NOTES_LINE_HEIGHT_PT
   }
   const pdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl)
   if (pdfImages.length > 0) {
@@ -775,7 +797,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
         </View>
         {item.notes ? (
           <View style={s.notesRow}>
-            <Text style={s.notesText}>{`הערה: ${fixRtlText(item.notes)}`}</Text>
+            {renderFormattedNotesPdf(item.notes, s.notesText)}
           </View>
         ) : null}
         {hasPdfImages && (
