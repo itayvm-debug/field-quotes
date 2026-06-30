@@ -1,205 +1,136 @@
 'use client'
 
-import { useRef, useEffect, useCallback } from 'react'
-
-// ── HTML sanitizer ────────────────────────────────────────────────────────────
-// Walks the live contenteditable DOM and produces safe, flat HTML.
-// Allowed output tags: <strong>, <u>, <strong><u>…</u></strong>, <br>.
-// Everything else (div, p, b, span, etc.) is unwrapped — but bold/underline
-// context inherited from ancestor elements is propagated to text nodes.
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
-
-function sanitizeHtml(el: HTMLElement): string {
-  function walk(node: Node, bold: boolean, underline: boolean): string {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = escapeHtml(node.textContent ?? '')
-      if (!text) return ''
-      if (bold && underline) return `<strong><u>${text}</u></strong>`
-      if (bold) return `<strong>${text}</strong>`
-      if (underline) return `<u>${text}</u>`
-      return text
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return ''
-    const elem = node as HTMLElement
-    const tag = elem.tagName.toLowerCase()
-
-    if (tag === 'br') return '<br>'
-
-    const style = elem.getAttribute('style') ?? ''
-    const isBold =
-      bold || tag === 'strong' || tag === 'b' ||
-      /font-weight\s*:\s*(bold|700)/i.test(style)
-    const isUnderline =
-      underline || tag === 'u' ||
-      /text-decoration\s*:.*underline/i.test(style)
-
-    const inner = Array.from(elem.childNodes)
-      .map(c => walk(c, isBold, isUnderline))
-      .join('')
-
-    // Chrome sometimes wraps continuation lines in <div>/<p> despite our Enter
-    // interception — prepend <br> so line breaks are preserved.
-    if (tag === 'div' || tag === 'p') return inner ? `<br>${inner}` : ''
-    return inner
-  }
-
-  return Array.from(el.childNodes)
-    .map(node => walk(node, false, false))
-    .join('')
-    .replace(/^(<br>)+/, '')   // strip leading <br>
-    .replace(/(<br>)+$/, '')   // strip trailing <br>
-}
-
-// ── Load helper ───────────────────────────────────────────────────────────────
-// Converts any stored notes value to display HTML for the contenteditable.
-// Handles both current (sanitized HTML) and legacy (Markdown) formats.
-
-function loadHtml(value: string): string {
-  if (!value) return ''
-  // Current format: already sanitized HTML
-  if (/<(strong|u|br)\b/i.test(value)) return value
-  // Legacy Markdown: convert **bold** → <strong>, __u__ → <u>, \n → <br>
-  return value
-    .split('\n')
-    .map((line) => {
-      const safe = line
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-      return safe
-        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-    })
-    .join('<br>')
-}
-
-// ── Component ──────────────────────────────────────────────────────────────────
+import { useState, useRef, useEffect } from 'react'
+import { parseNotes, serializeNotes, type NoteParagraph } from '@/lib/notesFormat'
 
 interface Props {
-  value: string                      // stored as sanitized HTML (or legacy Markdown)
+  value: string                      // JSON string (or legacy format)
   onChange: (value: string) => void
-  placeholder?: string
 }
 
-export function RichNotesEditor({ value, onChange, placeholder = 'הערות לסעיף זה...' }: Props) {
-  const editorRef  = useRef<HTMLDivElement>(null)
-  const lastHtml   = useRef(value)   // last value passed to onChange (HTML or legacy Markdown)
-  const composing  = useRef(false)   // true during IME composition (Hebrew, etc.)
+export function RichNotesEditor({ value, onChange }: Props) {
+  const [paras, setParas] = useState<NoteParagraph[]>(() => parseNotes(value))
+  const lastValue = useRef(value)
+  const refs = useRef<(HTMLTextAreaElement | null)[]>([])
 
-  // Initialize editor HTML from stored value on first mount only
+  // Re-sync when parent provides a new value (e.g., opening different quote)
   useEffect(() => {
-    if (editorRef.current) {
-      editorRef.current.innerHTML = loadHtml(value)
-      lastHtml.current = value
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Re-sync if parent changes value while editor is not focused (e.g., initial quote load)
-  useEffect(() => {
-    if (
-      value !== lastHtml.current &&
-      editorRef.current &&
-      document.activeElement !== editorRef.current
-    ) {
-      editorRef.current.innerHTML = loadHtml(value)
-      lastHtml.current = value
+    if (value !== lastValue.current) {
+      setParas(parseNotes(value))
+      lastValue.current = value
     }
   }, [value])
 
-  const sync = useCallback(() => {
-    if (!editorRef.current) return
-    const html = sanitizeHtml(editorRef.current)
-    if (html !== lastHtml.current) {
-      lastHtml.current = html
-      onChange(html)
-    }
-  }, [onChange])
-
-  // execCommand has built-in toggle: removes formatting when already applied.
-  // onMouseDown + e.preventDefault() keeps editor focus so selection stays intact.
-  const applyFormat = (cmd: 'bold' | 'underline') => {
-    const el = editorRef.current
-    if (!el) return
-    el.focus()
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    document.execCommand(cmd, false)
-    sync()
+  const commit = (next: NoteParagraph[]) => {
+    setParas(next)
+    const serialized = serializeNotes(next)
+    lastValue.current = serialized
+    onChange(serialized)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+  const updateText = (idx: number, text: string) => {
+    commit(paras.map((p, i) => (i === idx ? { ...p, text } : p)))
+  }
+
+  const toggleBold = (idx: number) => {
+    commit(paras.map((p, i) => (i === idx ? { ...p, bold: !p.bold } : p)))
+  }
+
+  const addAfter = (idx: number) => {
+    const next = [...paras]
+    next.splice(idx + 1, 0, { text: '', bold: false })
+    commit(next)
+    setTimeout(() => refs.current[idx + 1]?.focus(), 0)
+  }
+
+  const removePara = (idx: number) => {
+    if (paras.length === 1) {
+      commit([{ text: '', bold: false }])
+      return
+    }
+    const next = paras.filter((_, i) => i !== idx)
+    commit(next)
+    setTimeout(() => refs.current[Math.max(0, idx - 1)]?.focus(), 0)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, idx: number) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      // Insert <br> to keep flat DOM structure (avoids browser div/p wrapping)
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      document.execCommand('insertLineBreak')
-      sync()
+      addAfter(idx)
+      return
+    }
+    if (e.key === 'Backspace' && paras[idx].text === '' && paras.length > 1) {
+      e.preventDefault()
+      removePara(idx)
     }
   }
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault()
-    // Accept only plain text — prevents injecting arbitrary HTML
-    const text = e.clipboardData.getData('text/plain')
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    document.execCommand('insertText', false, text)
-    sync()
+  const autoGrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
   }
 
   return (
     <div className="mb-3">
-      {/* Label + toolbar */}
       <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onMouseDown={(e) => { e.preventDefault(); applyFormat('bold') }}
-            className="font-bold text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition-colors"
-            title="הדגשה (סמן טקסט ולחץ)"
-          >
-            B
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => { e.preventDefault(); applyFormat('underline') }}
-            className="underline text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition-colors"
-            title="קו תחתון (סמן טקסט ולחץ)"
-          >
-            U
-          </button>
-        </div>
+        <span className="text-xs text-gray-400">Shift+Enter = שורה, Enter = פסקה חדשה</span>
         <span className="text-xs text-gray-500">הערות (אופציונלי)</span>
       </div>
 
-      {/* Editor */}
-      <div className="relative">
-        <div
-          ref={editorRef}
-          contentEditable
-          dir="rtl"
-          role="textbox"
-          aria-multiline="true"
-          aria-label="הערות"
-          suppressContentEditableWarning
-          onInput={() => { if (!composing.current) sync() }}
-          onCompositionStart={() => { composing.current = true }}
-          onCompositionEnd={() => { composing.current = false; sync() }}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          className="w-full min-h-[76px] border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-        />
-        {/* Placeholder — shown when notes are empty */}
-        {!value && (
-          <span className="absolute top-2.5 right-3 text-sm text-gray-400 pointer-events-none select-none">
-            {placeholder}
-          </span>
-        )}
+      <div className="border border-gray-200 rounded-xl bg-gray-50 focus-within:ring-2 focus-within:ring-orange-500 overflow-hidden">
+        {paras.map((para, idx) => (
+          <div
+            key={idx}
+            className={`flex items-start gap-1.5 px-2 py-1.5 ${
+              idx > 0 ? 'border-t border-gray-100' : ''
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => toggleBold(idx)}
+              title={para.bold ? 'בטל הדגשה' : 'הדגש שורה זו'}
+              className={`flex-shrink-0 font-bold text-xs w-6 h-6 mt-0.5 flex items-center justify-center border rounded transition-colors ${
+                para.bold
+                  ? 'bg-orange-100 border-orange-300 text-orange-700'
+                  : 'border-gray-200 text-gray-300 hover:text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              B
+            </button>
+
+            <textarea
+              ref={(el) => {
+                refs.current[idx] = el
+                if (el) autoGrow(el)
+              }}
+              value={para.text}
+              dir="rtl"
+              rows={1}
+              onChange={(e) => {
+                updateText(idx, e.target.value)
+                autoGrow(e.target)
+              }}
+              onKeyDown={(e) => handleKeyDown(e, idx)}
+              placeholder={idx === 0 && paras.length === 1 ? 'הערות לסעיף זה...' : ''}
+              className={`flex-1 bg-transparent text-sm resize-none focus:outline-none leading-relaxed py-0.5 ${
+                para.bold ? 'font-bold text-gray-900' : 'text-gray-800'
+              }`}
+              style={{ minHeight: '24px', overflow: 'hidden' }}
+            />
+
+            {paras.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removePara(idx)}
+                aria-label="מחק שורה"
+                className="flex-shrink-0 mt-1 text-gray-300 hover:text-red-400 text-sm leading-none px-0.5 transition-colors"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )

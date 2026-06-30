@@ -1,4 +1,4 @@
-import path from 'path'
+﻿import path from 'path'
 import React from 'react'
 import {
   Document,
@@ -9,7 +9,7 @@ import {
   Font,
   StyleSheet,
 } from '@react-pdf/renderer'
-import { parseFormattedText, type TextSegment } from '@/lib/formatText'
+import { parseNotes } from '@/lib/notesFormat'
 
 // ── Local fonts (bundled in /public/fonts) ────────────────────────────────────
 const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
@@ -582,77 +582,18 @@ function renderBoldText(rawText: string, style: any) {
   )
 }
 
-// ── Formatted notes renderer ──────────────────────────────────────────────────
-// Renders one react-pdf <Text> BLOCK per line.
-//
-// Why per-block and not inline \n:
-//   In react-pdf, <Text>{'\n'}</Text> as an inline child inside another <Text>
-//   does not reliably produce a line break for RTL Hebrew paragraphs — all runs
-//   end up on one logical line, making bold/underline appear on the wrong text.
-//   Rendering each line as a separate block <Text> avoids this entirely.
-//
-// Segments with embedded '\n' (legacy Markdown format) are expanded into
-// standalone '\n' sentinels before line-splitting so both formats are handled.
-//
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderNoteLines(rawText: string, style: any): React.ReactElement[] {
-  const raw = parseFormattedText(rawText)
-
-  // Expand any segment whose text contains '\n' into separate segments.
-  // HTML format: already has standalone {text:'\n'} from parseHtmlToSegments.
-  // Legacy Markdown: '\n' is embedded in plain-text segments — split them here.
-  const expanded: TextSegment[] = []
-  for (const seg of raw) {
-    if (seg.text.includes('\n')) {
-      const parts = seg.text.split('\n')
-      parts.forEach((part, p) => {
-        if (part) expanded.push({ text: part, bold: seg.bold, underline: seg.underline })
-        if (p < parts.length - 1) expanded.push({ text: '\n' })
-      })
-    } else {
-      expanded.push(seg)
-    }
-  }
-
-  // Bucket expanded segments into per-line arrays
-  const lines: TextSegment[][] = [[]]
-  for (const seg of expanded) {
-    if (seg.text === '\n') {
-      lines.push([])
-    } else {
-      lines[lines.length - 1].push(seg)
-    }
-  }
-  // Drop trailing empty line
-  while (lines.length > 0 && lines[lines.length - 1].length === 0) lines.pop()
-  if (lines.length === 0) return []
-
-  return lines.map((lineSegs, lineIdx): React.ReactElement => {
-    // "הערה: " label prepended to the first line only
-    const labelNode = lineIdx === 0 ? <Text key="lbl">{'הערה: '}</Text> : undefined
-
-    // Empty line (blank paragraph between newlines)
-    if (lineSegs.length === 0) {
-      return (
-        <Text key={lineIdx} style={style}>
-          {labelNode ?? ' '}
-        </Text>
-      )
-    }
-
-    return (
-      <Text key={lineIdx} style={style}>
-        {labelNode}
-        {lineSegs.map((seg, i) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const segStyle: any = {}
-          if (seg.bold) segStyle.fontWeight = 'bold'
-          if (seg.underline) segStyle.textDecoration = 'underline'
-          return <Text key={i} style={segStyle}>{seg.text}</Text>
-        })}
-      </Text>
-    )
-  })
+  const paras = parseNotes(rawText).filter((p) => p.text.trim())
+  if (paras.length === 0) return []
+  return [
+    <Text key="lbl" style={style}>{'הערה:'}</Text>,
+    ...paras.map((para, idx): React.ReactElement => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const paraStyle: any = para.bold ? { ...style, fontWeight: 'bold' } : style
+      return <Text key={idx} style={paraStyle}>{para.text}</Text>
+    }),
+  ]
 }
 
 // ── Section title helper ───────────────────────────────────────────────────────
@@ -683,21 +624,15 @@ function estimateItemHeight(item: PdfItem): number {
   let h = ITEM_BASE_HEIGHT_PT + (descLines - 1) * LINE_HEIGHT_PT
   if (item.is_optional) h += OPTIONAL_LABEL_EXTRA
   if (item.notes) {
-    // Count explicit line breaks from both storage formats:
-    //   current HTML format uses <br>, legacy Markdown format uses \n
-    const explicitNewlines =
-      (item.notes.match(/<br\s*\/?>/gi) ?? []).length +
-      (item.notes.match(/\n/g) ?? []).length
-    // Strip HTML tags and Markdown markers to get plain character count
-    const plainText = item.notes
-      .replace(/<br\s*\/?>/gi, '')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&[a-z]+;/g, ' ')
-      .replace(/\*\*/g, '')
-      .replace(/__/g, '')
-      .replace(/\n/g, '')
-    const wrapLines = Math.max(1, Math.ceil(plainText.length / NOTES_CHARS_PER_LINE))
-    h += NOTES_BASE_HEIGHT_PT + (wrapLines - 1 + explicitNewlines) * NOTES_LINE_HEIGHT_PT
+    const notesParas = parseNotes(item.notes).filter((p) => p.text.trim())
+    if (notesParas.length > 0) {
+      // +1 for the label line, then sum wrapped lines per paragraph
+      const wrappedLines = notesParas.reduce((acc, p) => {
+        const sublines = p.text.split('\n')
+        return acc + sublines.reduce((s, l) => s + Math.max(1, Math.ceil(l.length / NOTES_CHARS_PER_LINE)), 0)
+      }, 0)
+      h += NOTES_BASE_HEIGHT_PT + wrappedLines * NOTES_LINE_HEIGHT_PT
+    }
   }
   const pdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl)
   if (pdfImages.length > 0) {

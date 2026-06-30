@@ -10,7 +10,7 @@ import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COL
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
 import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
 
-import { parseFormattedText } from '@/lib/formatText'
+import { parseNotes } from '@/lib/notesFormat'
 
 const fixRtlText = (text: string) =>
   text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
@@ -31,14 +31,15 @@ function renderBoldHtml(text: string): React.ReactNode {
   )
 }
 
-// Renders item notes with bold (**...**), underline (__...__), and newline support.
-function renderFormattedNotes(text: string): React.ReactNode {
-  const segments = parseFormattedText(text)
-  return segments.map((seg, i) => {
-    if (seg.bold) return <strong key={i}>{seg.text}</strong>
-    if (seg.underline) return <u key={i}>{seg.text}</u>
-    return <React.Fragment key={i}>{seg.text}</React.Fragment>
-  })
+function renderFormattedNotes(raw: string): React.ReactNode {
+  const paras = parseNotes(raw).filter((p) => p.text.trim())
+  if (paras.length === 0) return null
+  return paras.map((para, i) => (
+    <React.Fragment key={i}>
+      {i > 0 && '\n'}
+      {para.bold ? <strong>{para.text}</strong> : para.text}
+    </React.Fragment>
+  ))
 }
 
 interface Props {
