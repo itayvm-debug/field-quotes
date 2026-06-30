@@ -29,7 +29,6 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
 
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">מע״מ {vatEnabled ? VAT_RATE : 0}%</span>
             {onVatToggle && (
               <button
                 type="button"
@@ -47,6 +46,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
                 />
               </button>
             )}
+            <span className="text-sm text-gray-600 whitespace-nowrap">מע״מ {vatEnabled ? VAT_RATE : 0}%</span>
           </div>
           <span className="font-medium text-gray-900">
             {formatCurrency(vatAmount)}

@@ -605,7 +605,7 @@ function prepareRtlTextForPdf(text: string): string {
   if (!containsHebrew(cleaned)) return cleaned
   if (/https?:\/\//i.test(cleaned) || cleaned.includes('@')) return cleaned
   if (/^[.:;!?]/.test(cleaned)) return cleaned
-  const m = cleaned.match(/^([\s\S]*?)([.:;!?])$/u)
+  const m = cleaned.match(/^([\s\S]*[^\s.:;!?,])([.:;!?])$/u)
   if (m) return m[2] + m[1]
   return cleaned
 }
