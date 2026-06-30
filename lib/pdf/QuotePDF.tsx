@@ -590,12 +590,6 @@ function stripBidiControlChars(text: string): string {
   return text.replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
 }
 
-// Strip bidi control chars and trim. No punctuation manipulation — text must
-// reach react-pdf exactly as the user wrote it.
-function prepareRtlTextForPdf(text: string): string {
-  return stripBidiControlChars(text).trim()
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderNoteLines(rawText: string, style: any): React.ReactElement[] {
   const paras = parseNotes(rawText).filter((p) => p.text.trim())
@@ -605,7 +599,11 @@ function renderNoteLines(rawText: string, style: any): React.ReactElement[] {
     ...paras.map((para, idx): React.ReactElement => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const paraStyle: any = para.bold ? { ...style, fontWeight: 'bold' } : style
-      return <Text key={idx} style={paraStyle}>{prepareRtlTextForPdf(para.text)}</Text>
+      // fixRtlText appends U+200F (RLM) after each line — same as exclusions/descriptions.
+      // Without it, trailing neutral punctuation (e.g. ".") resolves to LTR paragraph
+      // direction and appears at the wrong visual position.
+      const text = fixRtlText(stripBidiControlChars(para.text).trim())
+      return <Text key={idx} style={paraStyle}>{text}</Text>
     }),
   ]
 }
