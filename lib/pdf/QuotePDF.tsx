@@ -590,24 +590,10 @@ function stripBidiControlChars(text: string): string {
   return text.replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
 }
 
-function containsHebrew(text: string): boolean {
-  return /[֐-׿]/.test(text)
-}
-
-// Render-only punctuation fix for react-pdf Hebrew text.
-// PDFKit defaults to LTR paragraph embedding, so trailing neutral punctuation
-// (., :, ;, !, ?) ends up at the VISUAL RIGHT instead of the visual left
-// (logical end of an RTL sentence). Moving it to the LOGICAL BEGINNING absorbs
-// it into the RTL run so it renders at the correct visual position.
-// Applied ONLY before react-pdf rendering — never stored or displayed elsewhere.
+// Strip bidi control chars and trim. No punctuation manipulation — text must
+// reach react-pdf exactly as the user wrote it.
 function prepareRtlTextForPdf(text: string): string {
-  const cleaned = stripBidiControlChars(text).trim()
-  if (!containsHebrew(cleaned)) return cleaned
-  if (/https?:\/\//i.test(cleaned) || cleaned.includes('@')) return cleaned
-  if (/^[.:;!?]/.test(cleaned)) return cleaned
-  const m = cleaned.match(/^([\s\S]*[^\s.:;!?,])([.:;!?])$/u)
-  if (m) return m[2] + m[1]
-  return cleaned
+  return stripBidiControlChars(text).trim()
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
