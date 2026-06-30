@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { QuotePDF } from '@/lib/pdf/QuotePDF'
 import type { PdfItem, PdfItemImage, PdfCreator } from '@/lib/pdf/QuotePDF'
 import { buildQuotePdfFilename } from '@/lib/share/shareQuotePdf'
+import { parseFormattedText } from '@/lib/formatText'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +117,24 @@ export async function GET(
       }
     })
   )
+
+  // [notes-debug] — log raw notes + parsed segments to server console
+  // Remove this block once formatting is verified in prod.
+  for (const item of items) {
+    if (item.notes) {
+      const isHtml = /<(strong|u|br)\b/i.test(item.notes)
+      const segments = parseFormattedText(item.notes)
+      console.log('[notes-debug] item', item.item_number, {
+        rawNotes: item.notes,
+        format: isHtml ? 'html' : 'markdown/plain',
+        segments: segments.map(s => ({
+          text: JSON.stringify(s.text),   // JSON.stringify shows \n, ‏ etc.
+          bold: s.bold ?? false,
+          underline: s.underline ?? false,
+        })),
+      })
+    }
+  }
 
   try {
     const pdfElement = React.createElement(QuotePDF, {

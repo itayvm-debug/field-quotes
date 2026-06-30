@@ -583,8 +583,13 @@ function renderBoldText(rawText: string, style: any) {
 }
 
 // ── Formatted notes renderer — handles HTML and legacy Markdown ───────────────
-// Parses notes (auto-detected format) and renders each segment with correct
-// font style. fixRtlText is applied per segment so it never corrupts HTML tags.
+// Parses notes (auto-detected format) and renders inline segments with correct
+// font weight / decoration.
+//
+// fixRtlText is intentionally NOT applied per-segment: it appends U+200F (RTL
+// mark) which Heebo/PDFKit renders as a visible space, causing "הקבלן ," instead
+// of "הקבלן,". Hebrew characters carry inherent RTL bidi class, so they render
+// correctly in the RTL block without explicit RTL marks.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderFormattedNotesPdf(rawText: string, style: any) {
   const segments = parseFormattedText(rawText)
@@ -592,14 +597,13 @@ function renderFormattedNotesPdf(rawText: string, style: any) {
     <Text style={style}>
       <Text>{'הערה: '}</Text>
       {segments.map((seg, i) => {
-        // Newline segments (from <br> or legacy \n) — no style needed
+        // Newline segments (from <br> or legacy \n)
         if (seg.text === '\n') return <Text key={i}>{'\n'}</Text>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const segStyle: any = {}
         if (seg.bold) segStyle.fontWeight = 'bold'
         if (seg.underline) segStyle.textDecoration = 'underline'
-        // fixRtlText applied per-segment so it never touches HTML tag characters
-        return <Text key={i} style={segStyle}>{fixRtlText(seg.text)}</Text>
+        return <Text key={i} style={segStyle}>{seg.text}</Text>
       })}
     </Text>
   )
