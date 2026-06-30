@@ -582,19 +582,24 @@ function renderBoldText(rawText: string, style: any) {
   )
 }
 
-// ── Formatted notes renderer — parses **bold**, __underline__, and \n ────────
+// ── Formatted notes renderer — handles HTML and legacy Markdown ───────────────
+// Parses notes (auto-detected format) and renders each segment with correct
+// font style. fixRtlText is applied per segment so it never corrupts HTML tags.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderFormattedNotesPdf(rawText: string, style: any) {
-  const segments = parseFormattedText(fixRtlText(rawText))
+  const segments = parseFormattedText(rawText)
   return (
     <Text style={style}>
       <Text>{'הערה: '}</Text>
       {segments.map((seg, i) => {
+        // Newline segments (from <br> or legacy \n) — no style needed
+        if (seg.text === '\n') return <Text key={i}>{'\n'}</Text>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const s: any = {}
-        if (seg.bold) s.fontWeight = 'bold'
-        if (seg.underline) s.textDecoration = 'underline'
-        return <Text key={i} style={s}>{seg.text}</Text>
+        const segStyle: any = {}
+        if (seg.bold) segStyle.fontWeight = 'bold'
+        if (seg.underline) segStyle.textDecoration = 'underline'
+        // fixRtlText applied per-segment so it never touches HTML tag characters
+        return <Text key={i} style={segStyle}>{fixRtlText(seg.text)}</Text>
       })}
     </Text>
   )
@@ -628,10 +633,20 @@ function estimateItemHeight(item: PdfItem): number {
   let h = ITEM_BASE_HEIGHT_PT + (descLines - 1) * LINE_HEIGHT_PT
   if (item.is_optional) h += OPTIONAL_LABEL_EXTRA
   if (item.notes) {
-    // Count wrap-lines from characters + explicit newlines (user can now type multi-line notes)
-    const explicitNewlines = (item.notes.match(/\n/g) ?? []).length
-    const charsWithoutBreaks = item.notes.replace(/\n/g, '').length
-    const wrapLines = Math.max(1, Math.ceil(charsWithoutBreaks / NOTES_CHARS_PER_LINE))
+    // Count explicit line breaks from both storage formats:
+    //   current HTML format uses <br>, legacy Markdown format uses \n
+    const explicitNewlines =
+      (item.notes.match(/<br\s*\/?>/gi) ?? []).length +
+      (item.notes.match(/\n/g) ?? []).length
+    // Strip HTML tags and Markdown markers to get plain character count
+    const plainText = item.notes
+      .replace(/<br\s*\/?>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&[a-z]+;/g, ' ')
+      .replace(/\*\*/g, '')
+      .replace(/__/g, '')
+      .replace(/\n/g, '')
+    const wrapLines = Math.max(1, Math.ceil(plainText.length / NOTES_CHARS_PER_LINE))
     h += NOTES_BASE_HEIGHT_PT + (wrapLines - 1 + explicitNewlines) * NOTES_LINE_HEIGHT_PT
   }
   const pdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl)

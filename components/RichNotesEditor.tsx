@@ -2,16 +2,72 @@
 
 import { useRef, useEffect, useCallback } from 'react'
 
-// ── Markdown ↔ HTML ────────────────────────────────────────────────────────────
-// Storage format: Markdown (**bold**, __underline__, \n for newlines)
-// Display format: HTML (<strong>, <u>, <br>)
+// ── HTML sanitizer ────────────────────────────────────────────────────────────
+// Walks the live contenteditable DOM and produces safe, flat HTML.
+// Allowed output tags: <strong>, <u>, <strong><u>…</u></strong>, <br>.
+// Everything else (div, p, b, span, etc.) is unwrapped — but bold/underline
+// context inherited from ancestor elements is propagated to text nodes.
 
-function mdToHtml(md: string): string {
-  if (!md) return ''
-  return md
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function sanitizeHtml(el: HTMLElement): string {
+  function walk(node: Node, bold: boolean, underline: boolean): string {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = escapeHtml(node.textContent ?? '')
+      if (!text) return ''
+      if (bold && underline) return `<strong><u>${text}</u></strong>`
+      if (bold) return `<strong>${text}</strong>`
+      if (underline) return `<u>${text}</u>`
+      return text
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return ''
+    const elem = node as HTMLElement
+    const tag = elem.tagName.toLowerCase()
+
+    if (tag === 'br') return '<br>'
+
+    const style = elem.getAttribute('style') ?? ''
+    const isBold =
+      bold || tag === 'strong' || tag === 'b' ||
+      /font-weight\s*:\s*(bold|700)/i.test(style)
+    const isUnderline =
+      underline || tag === 'u' ||
+      /text-decoration\s*:.*underline/i.test(style)
+
+    const inner = Array.from(elem.childNodes)
+      .map(c => walk(c, isBold, isUnderline))
+      .join('')
+
+    // Chrome sometimes wraps continuation lines in <div>/<p> despite our Enter
+    // interception — prepend <br> so line breaks are preserved.
+    if (tag === 'div' || tag === 'p') return inner ? `<br>${inner}` : ''
+    return inner
+  }
+
+  return Array.from(el.childNodes)
+    .map(node => walk(node, false, false))
+    .join('')
+    .replace(/^(<br>)+/, '')   // strip leading <br>
+    .replace(/(<br>)+$/, '')   // strip trailing <br>
+}
+
+// ── Load helper ───────────────────────────────────────────────────────────────
+// Converts any stored notes value to display HTML for the contenteditable.
+// Handles both current (sanitized HTML) and legacy (Markdown) formats.
+
+function loadHtml(value: string): string {
+  if (!value) return ''
+  // Current format: already sanitized HTML
+  if (/<(strong|u|br)\b/i.test(value)) return value
+  // Legacy Markdown: convert **bold** → <strong>, __u__ → <u>, \n → <br>
+  return value
     .split('\n')
     .map((line) => {
-      // Escape HTML entities first, then apply formatting so tags aren't escaped
       const safe = line
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -23,53 +79,24 @@ function mdToHtml(md: string): string {
     .join('<br>')
 }
 
-// Walk the live DOM and serialize back to Markdown.
-// Handles the various tags that execCommand may produce across browsers.
-function htmlToMd(el: HTMLElement): string {
-  function walk(node: Node): string {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
-    if (node.nodeType !== Node.ELEMENT_NODE) return ''
-    const elem = node as HTMLElement
-    const tag = elem.tagName.toLowerCase()
-    const inner = Array.from(elem.childNodes).map(walk).join('')
-    if (tag === 'strong' || tag === 'b') return `**${inner}**`
-    if (tag === 'u') return `__${inner}__`
-    if (tag === 'span') {
-      const style = elem.getAttribute('style') ?? ''
-      if (style.includes('text-decoration') && style.includes('underline')) return `__${inner}__`
-      if (style.includes('font-weight') && style.includes('bold')) return `**${inner}**`
-      return inner
-    }
-    if (tag === 'br') return '\n'
-    // Chrome sometimes wraps new lines in <div>/<p> despite our Enter interception
-    if (tag === 'div' || tag === 'p') return inner ? `\n${inner}` : '\n'
-    return inner
-  }
-  return Array.from(el.childNodes)
-    .map(walk)
-    .join('')
-    .replace(/^\n+/, '')   // strip leading newlines
-    .replace(/\n+$/, '')   // strip trailing newlines
-}
-
 // ── Component ──────────────────────────────────────────────────────────────────
 
 interface Props {
-  value: string                     // markdown-formatted string (stored in DB)
+  value: string                      // stored as sanitized HTML (or legacy Markdown)
   onChange: (value: string) => void
   placeholder?: string
 }
 
 export function RichNotesEditor({ value, onChange, placeholder = 'הערות לסעיף זה...' }: Props) {
   const editorRef  = useRef<HTMLDivElement>(null)
-  const lastMd     = useRef(value)   // tracks last synced markdown to avoid spurious updates
+  const lastHtml   = useRef(value)   // last value passed to onChange (HTML or legacy Markdown)
   const composing  = useRef(false)   // true during IME composition (Hebrew, etc.)
 
-  // Populate editor HTML from Markdown on first mount only
+  // Initialize editor HTML from stored value on first mount only
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = mdToHtml(value)
-      lastMd.current = value
+      editorRef.current.innerHTML = loadHtml(value)
+      lastHtml.current = value
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -77,26 +104,26 @@ export function RichNotesEditor({ value, onChange, placeholder = 'הערות ל�
   // Re-sync if parent changes value while editor is not focused (e.g., initial quote load)
   useEffect(() => {
     if (
-      value !== lastMd.current &&
+      value !== lastHtml.current &&
       editorRef.current &&
       document.activeElement !== editorRef.current
     ) {
-      editorRef.current.innerHTML = mdToHtml(value)
-      lastMd.current = value
+      editorRef.current.innerHTML = loadHtml(value)
+      lastHtml.current = value
     }
   }, [value])
 
   const sync = useCallback(() => {
     if (!editorRef.current) return
-    const md = htmlToMd(editorRef.current)
-    if (md !== lastMd.current) {
-      lastMd.current = md
-      onChange(md)
+    const html = sanitizeHtml(editorRef.current)
+    if (html !== lastHtml.current) {
+      lastHtml.current = html
+      onChange(html)
     }
   }, [onChange])
 
-  // execCommand('bold'/'underline') has built-in toggle: removes formatting when already applied.
-  // onMouseDown + e.preventDefault() keeps editor focus so the selection stays intact.
+  // execCommand has built-in toggle: removes formatting when already applied.
+  // onMouseDown + e.preventDefault() keeps editor focus so selection stays intact.
   const applyFormat = (cmd: 'bold' | 'underline') => {
     const el = editorRef.current
     if (!el) return
@@ -109,7 +136,7 @@ export function RichNotesEditor({ value, onChange, placeholder = 'הערות ל�
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      // Insert <br> to keep a flat DOM structure (avoids browser-specific <div>/<p> wrapping)
+      // Insert <br> to keep flat DOM structure (avoids browser div/p wrapping)
       // eslint-disable-next-line @typescript-eslint/no-deprecated
       document.execCommand('insertLineBreak')
       sync()
