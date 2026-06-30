@@ -292,7 +292,6 @@ const s = StyleSheet.create({
     fontSize: 7.5,
     color: GRAY_TEXT,
     textAlign: 'right',
-    direction: 'rtl' as never,
   },
 
   // RTL column order (visual right→left): מס׳ | תיאור עבודה | יח׳ | כמות | מחיר יח׳ | סה״כ
@@ -583,22 +582,44 @@ function renderBoldText(rawText: string, style: any) {
   )
 }
 
+
+// Strip Unicode directional control characters before PDF rendering.
+// react-pdf/PDFKit renders them as visible glyphs instead of invisible
+// formatting hints, producing garbled artifacts (i, g, Ê, etc.).
+function stripBidiControlChars(text: string): string {
+  return text.replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+}
+
+function containsHebrew(text: string): boolean {
+  return /[֐-׿]/.test(text)
+}
+
+// Render-only punctuation fix for react-pdf Hebrew text.
+// PDFKit defaults to LTR paragraph embedding, so trailing neutral punctuation
+// (., :, ;, !, ?) ends up at the VISUAL RIGHT instead of the visual left
+// (logical end of an RTL sentence). Moving it to the LOGICAL BEGINNING absorbs
+// it into the RTL run so it renders at the correct visual position.
+// Applied ONLY before react-pdf rendering — never stored or displayed elsewhere.
+function prepareRtlTextForPdf(text: string): string {
+  const cleaned = stripBidiControlChars(text).trim()
+  if (!containsHebrew(cleaned)) return cleaned
+  if (/https?:\/\//i.test(cleaned) || cleaned.includes('@')) return cleaned
+  if (/^[.:;!?]/.test(cleaned)) return cleaned
+  const m = cleaned.match(/^([\s\S]*?)([.:;!?])$/u)
+  if (m) return m[2] + m[1]
+  return cleaned
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderNoteLines(rawText: string, style: any): React.ReactElement[] {
   const paras = parseNotes(rawText).filter((p) => p.text.trim())
   if (paras.length === 0) return []
-  // RLI/PDI wrap each text in a Right-to-Left Isolate scope (U+2067/U+2069).
-  // These zero-width control chars force the Unicode bidi algorithm to treat
-  // the enclosed text as RTL regardless of surrounding context, so trailing
-  // punctuation (., :, ,) stays at the logical end, not the visual start.
-  const rli = '\u2067'
-  const pdi = '\u2069'
   return [
-    <Text key="lbl" style={style}>{rli + 'הערה:' + pdi}</Text>,
+    <Text key="lbl" style={style}>{'הערה'}</Text>,
     ...paras.map((para, idx): React.ReactElement => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const paraStyle: any = para.bold ? { ...style, fontWeight: 'bold' } : style
-      return <Text key={idx} style={paraStyle}>{rli + para.text + pdi}</Text>
+      return <Text key={idx} style={paraStyle}>{prepareRtlTextForPdf(para.text)}</Text>
     }),
   ]
 }
