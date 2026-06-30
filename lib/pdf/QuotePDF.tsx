@@ -9,7 +9,7 @@ import {
   Font,
   StyleSheet,
 } from '@react-pdf/renderer'
-import { parseFormattedText } from '@/lib/formatText'
+import { parseFormattedText, type TextSegment } from '@/lib/formatText'
 
 // ── Local fonts (bundled in /public/fonts) ────────────────────────────────────
 const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
@@ -582,31 +582,77 @@ function renderBoldText(rawText: string, style: any) {
   )
 }
 
-// ── Formatted notes renderer — handles HTML and legacy Markdown ───────────────
-// Parses notes (auto-detected format) and renders inline segments with correct
-// font weight / decoration.
+// ── Formatted notes renderer ──────────────────────────────────────────────────
+// Renders one react-pdf <Text> BLOCK per line.
 //
-// fixRtlText is intentionally NOT applied per-segment: it appends U+200F (RTL
-// mark) which Heebo/PDFKit renders as a visible space, causing "הקבלן ," instead
-// of "הקבלן,". Hebrew characters carry inherent RTL bidi class, so they render
-// correctly in the RTL block without explicit RTL marks.
+// Why per-block and not inline \n:
+//   In react-pdf, <Text>{'\n'}</Text> as an inline child inside another <Text>
+//   does not reliably produce a line break for RTL Hebrew paragraphs — all runs
+//   end up on one logical line, making bold/underline appear on the wrong text.
+//   Rendering each line as a separate block <Text> avoids this entirely.
+//
+// Segments with embedded '\n' (legacy Markdown format) are expanded into
+// standalone '\n' sentinels before line-splitting so both formats are handled.
+//
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function renderFormattedNotesPdf(rawText: string, style: any) {
-  const segments = parseFormattedText(rawText)
-  return (
-    <Text style={style}>
-      <Text>{'הערה: '}</Text>
-      {segments.map((seg, i) => {
-        // Newline segments (from <br> or legacy \n)
-        if (seg.text === '\n') return <Text key={i}>{'\n'}</Text>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const segStyle: any = {}
-        if (seg.bold) segStyle.fontWeight = 'bold'
-        if (seg.underline) segStyle.textDecoration = 'underline'
-        return <Text key={i} style={segStyle}>{seg.text}</Text>
-      })}
-    </Text>
-  )
+function renderNoteLines(rawText: string, style: any): React.ReactElement[] {
+  const raw = parseFormattedText(rawText)
+
+  // Expand any segment whose text contains '\n' into separate segments.
+  // HTML format: already has standalone {text:'\n'} from parseHtmlToSegments.
+  // Legacy Markdown: '\n' is embedded in plain-text segments — split them here.
+  const expanded: TextSegment[] = []
+  for (const seg of raw) {
+    if (seg.text.includes('\n')) {
+      const parts = seg.text.split('\n')
+      parts.forEach((part, p) => {
+        if (part) expanded.push({ text: part, bold: seg.bold, underline: seg.underline })
+        if (p < parts.length - 1) expanded.push({ text: '\n' })
+      })
+    } else {
+      expanded.push(seg)
+    }
+  }
+
+  // Bucket expanded segments into per-line arrays
+  const lines: TextSegment[][] = [[]]
+  for (const seg of expanded) {
+    if (seg.text === '\n') {
+      lines.push([])
+    } else {
+      lines[lines.length - 1].push(seg)
+    }
+  }
+  // Drop trailing empty line
+  while (lines.length > 0 && lines[lines.length - 1].length === 0) lines.pop()
+  if (lines.length === 0) return []
+
+  return lines.map((lineSegs, lineIdx): React.ReactElement => {
+    // "הערה: " label prepended to the first line only
+    const labelNode = lineIdx === 0 ? <Text key="lbl">{'הערה: '}</Text> : undefined
+
+    // Empty line (blank paragraph between newlines)
+    if (lineSegs.length === 0) {
+      return (
+        <Text key={lineIdx} style={style}>
+          {labelNode ?? ' '}
+        </Text>
+      )
+    }
+
+    return (
+      <Text key={lineIdx} style={style}>
+        {labelNode}
+        {lineSegs.map((seg, i) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const segStyle: any = {}
+          if (seg.bold) segStyle.fontWeight = 'bold'
+          if (seg.underline) segStyle.textDecoration = 'underline'
+          return <Text key={i} style={segStyle}>{seg.text}</Text>
+        })}
+      </Text>
+    )
+  })
 }
 
 // ── Section title helper ───────────────────────────────────────────────────────
@@ -816,7 +862,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
         </View>
         {item.notes ? (
           <View style={s.notesRow}>
-            {renderFormattedNotesPdf(item.notes, s.notesText)}
+            {renderNoteLines(item.notes, s.notesText)}
           </View>
         ) : null}
         {hasPdfImages && (
