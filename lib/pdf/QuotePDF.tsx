@@ -292,6 +292,7 @@ const s = StyleSheet.create({
     fontSize: 7.5,
     color: GRAY_TEXT,
     textAlign: 'right',
+    direction: 'rtl' as never,
   },
 
   // RTL column order (visual right→left): מס׳ | תיאור עבודה | יח׳ | כמות | מחיר יח׳ | סה״כ
@@ -586,12 +587,18 @@ function renderBoldText(rawText: string, style: any) {
 function renderNoteLines(rawText: string, style: any): React.ReactElement[] {
   const paras = parseNotes(rawText).filter((p) => p.text.trim())
   if (paras.length === 0) return []
+  // RLI/PDI wrap each text in a Right-to-Left Isolate scope (U+2067/U+2069).
+  // These zero-width control chars force the Unicode bidi algorithm to treat
+  // the enclosed text as RTL regardless of surrounding context, so trailing
+  // punctuation (., :, ,) stays at the logical end, not the visual start.
+  const rli = '\u2067'
+  const pdi = '\u2069'
   return [
-    <Text key="lbl" style={style}>{'הערה:'}</Text>,
+    <Text key="lbl" style={style}>{rli + 'הערה:' + pdi}</Text>,
     ...paras.map((para, idx): React.ReactElement => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const paraStyle: any = para.bold ? { ...style, fontWeight: 'bold' } : style
-      return <Text key={idx} style={paraStyle}>{para.text}</Text>
+      return <Text key={idx} style={paraStyle}>{rli + para.text + pdi}</Text>
     }),
   ]
 }

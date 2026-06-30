@@ -116,7 +116,7 @@ export function RichNotesEditor({ value, onChange }: Props) {
               className={`flex-1 bg-transparent text-sm resize-none focus:outline-none leading-relaxed py-0.5 ${
                 para.bold ? 'font-bold text-gray-900' : 'text-gray-800'
               }`}
-              style={{ minHeight: '24px', overflow: 'hidden' }}
+              style={{ minHeight: '24px', overflow: 'hidden', direction: 'rtl', unicodeBidi: 'isolate' }}
             />
 
             {paras.length > 1 && (
