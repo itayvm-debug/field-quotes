@@ -1,5 +1,6 @@
 import type { QuoteItemDraft } from '@/types'
 import { calcSubtotal, calcVat, calcTotal } from '@/lib/calculations'
+import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
 
 export interface RawQuote {
   id: string
@@ -14,6 +15,7 @@ export interface RawQuote {
   quote_items: Array<{ quantity: number; unit_price: number }>
   status_note?: string
   overpayment_note?: string  // migration 008
+  price_adjustments?: unknown  // migration 013
 }
 
 export interface RawProfile {
@@ -58,7 +60,8 @@ export function quoteComputedTotal(q: RawQuote): number {
     quantity: String(i.quantity), unit_price: String(i.unit_price),
   }))
   const sub = calcSubtotal(items)
-  return calcTotal(sub, calcVat(sub, q.vat_percentage))
+  const { adjustedTotal } = applyPriceAdjustments(sub, parsePriceAdjustments(q.price_adjustments))
+  return calcTotal(adjustedTotal, calcVat(adjustedTotal, q.vat_percentage))
 }
 
 export function computeKPIs(quotes: RawQuote[]): AnalyticsKPI {

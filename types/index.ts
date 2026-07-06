@@ -1,3 +1,6 @@
+import type { PriceAdjustment } from '@/lib/priceAdjustments'
+export type { PriceAdjustment }
+
 export type UserRole = 'user' | 'admin' | 'manager' | 'viewer'
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'archived'
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'closed_partial'
@@ -53,6 +56,8 @@ export interface Quote {
   payment_closed_by: string | null
   // Overpayment tracking (added in migration 008)
   overpayment_note?: string
+  // Price adjustments (added in migration 013)
+  price_adjustments?: PriceAdjustment[]
 }
 
 export interface QuoteWithItems extends Quote {
@@ -106,6 +111,7 @@ export interface QuoteHeaderDraft {
   payment_terms: string
   exclusions: string
   vat_percentage: number
+  price_adjustments: PriceAdjustment[]
 }
 
 export const PREDEFINED_UNITS = [

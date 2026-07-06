@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { QuotePDF } from '@/lib/pdf/QuotePDF'
 import type { PdfItem, PdfItemImage, PdfCreator } from '@/lib/pdf/QuotePDF'
 import { buildQuotePdfFilename } from '@/lib/share/shareQuotePdf'
+import { parsePriceAdjustments } from '@/lib/priceAdjustments'
 
 export const dynamic = 'force-dynamic'
 
@@ -131,6 +132,8 @@ export async function GET(
         payment_terms: quote.payment_terms,
         exclusions: quote.exclusions,
         vat_percentage: parseFloat(String(quote.vat_percentage)),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        price_adjustments: parsePriceAdjustments((quote as any).price_adjustments),
       },
       items,
       company: {

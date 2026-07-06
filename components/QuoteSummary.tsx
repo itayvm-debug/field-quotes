@@ -1,7 +1,9 @@
 'use client'
 
 import { calcSubtotal, calcVat, calcTotal, formatCurrency } from '@/lib/calculations'
+import { applyPriceAdjustments } from '@/lib/priceAdjustments'
 import type { QuoteItemDraft } from '@/types'
+import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
 const VAT_RATE = 18
 
@@ -9,13 +11,17 @@ interface Props {
   items: QuoteItemDraft[]
   vatEnabled: boolean
   onVatToggle?: (enabled: boolean) => void
+  priceAdjustments?: PriceAdjustment[]
 }
 
-export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
+export function QuoteSummary({ items, vatEnabled, onVatToggle, priceAdjustments }: Props) {
   const subtotal = calcSubtotal(items)
-  const vatAmount = calcVat(subtotal, vatEnabled ? VAT_RATE : 0)
-  const total = calcTotal(subtotal, vatAmount)
+  const adjResult = applyPriceAdjustments(subtotal, priceAdjustments ?? [])
+  const adjustedSubtotal = adjResult.adjustedTotal
+  const vatAmount = calcVat(adjustedSubtotal, vatEnabled ? VAT_RATE : 0)
+  const total = calcTotal(adjustedSubtotal, vatAmount)
   const optionalCount = items.filter((i) => i.is_optional).length
+  const hasAdjustments = adjResult.adjustments.length > 0
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -23,9 +29,29 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle }: Props) {
 
       <div className="space-y-2.5">
         <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">סה״כ לפני מע״מ</span>
+          <span className="text-sm text-gray-600">
+            {hasAdjustments ? 'סה״כ לפני התאמות' : 'סה״כ לפני מע״מ'}
+          </span>
           <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
         </div>
+
+        {adjResult.adjustments.map((adj) => (
+          <div key={adj.id} className="flex justify-between items-center">
+            <span className={`text-sm font-medium ${adj.type === 'addition' ? 'text-green-600' : 'text-red-500'}`}>
+              {adj.type === 'addition' ? '+' : '-'}{formatCurrency(adj.amount)}
+            </span>
+            <span className="text-sm text-gray-500">
+              {adj.name} {adj.percentage}%
+            </span>
+          </div>
+        ))}
+
+        {hasAdjustments && (
+          <div className="flex justify-between items-center border-t border-gray-100 pt-2">
+            <span className="text-sm text-gray-600 font-medium">סה״כ לאחר התאמות</span>
+            <span className="font-medium text-gray-900">{formatCurrency(adjustedSubtotal)}</span>
+          </div>
+        )}
 
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">

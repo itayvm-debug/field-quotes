@@ -10,6 +10,8 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer'
 import { parseNotes } from '@/lib/notesFormat'
+import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
+import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
 // ── Local fonts (bundled in /public/fonts) ────────────────────────────────────
 const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
@@ -76,6 +78,7 @@ export interface PdfQuote {
   payment_terms: string
   exclusions: string
   vat_percentage: number
+  price_adjustments?: PriceAdjustment[]
 }
 
 export interface PdfCompany {
@@ -717,8 +720,10 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   const requiredItems = items.filter((i) => !i.is_optional)
   const hasOptional = items.some((i) => i.is_optional)
   const subtotal = requiredItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
-  const vatAmount = (subtotal * quote.vat_percentage) / 100
-  const total = subtotal + vatAmount
+  const adjResult = applyPriceAdjustments(subtotal, parsePriceAdjustments(quote.price_adjustments))
+  const adjustedSubtotal = adjResult.adjustedTotal
+  const vatAmount = (adjustedSubtotal * quote.vat_percentage) / 100
+  const total = adjustedSubtotal + vatAmount
 
   // Local logo fallback
   const localLogo = path.join(process.cwd(), 'public', 'company-logo.png')
@@ -834,8 +839,24 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
         <View style={s.summaryBox}>
           <View style={s.summaryRow}>
             <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
-            <Text style={s.summaryLabel}>סה״כ לפני מע״מ</Text>
+            <Text style={s.summaryLabel}>
+              {adjResult.adjustments.length > 0 ? 'סה״כ לפני התאמות' : 'סה״כ לפני מע״מ'}
+            </Text>
           </View>
+          {adjResult.adjustments.map((adj) => (
+            <View key={adj.id} style={s.summaryRow}>
+              <Text style={[s.summaryValue, { color: adj.type === 'addition' ? '#16a34a' : '#dc2626' }]}>
+                {adj.type === 'addition' ? '+' : '-'}{fmtCurrency(adj.amount)}
+              </Text>
+              <Text style={s.summaryLabel}>{adj.name} {adj.percentage}%</Text>
+            </View>
+          ))}
+          {adjResult.adjustments.length > 0 && (
+            <View style={s.summaryRow}>
+              <Text style={s.summaryValue}>{fmtCurrency(adjustedSubtotal)}</Text>
+              <Text style={s.summaryLabel}>סה״כ לאחר התאמות</Text>
+            </View>
+          )}
           <View style={s.summaryRow}>
             <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
             <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>

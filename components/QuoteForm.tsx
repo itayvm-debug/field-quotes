@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { QuoteItemCard } from './QuoteItemCard'
 import { QuoteSummary } from './QuoteSummary'
+import { PriceAdjustmentsEditor } from './PriceAdjustmentsEditor'
 import { FieldAutocomplete } from './FieldAutocomplete'
 import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
+import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -34,6 +36,7 @@ const defaultHeader = (): QuoteHeaderDraft => {
     payment_terms: '',
     exclusions: DEFAULT_EXCLUSIONS,
     vat_percentage: 0,
+    price_adjustments: [],
   }
 }
 
@@ -122,6 +125,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       payment_terms: header.payment_terms,
       exclusions: header.exclusions,
       vat_percentage: header.vat_percentage,
+      price_adjustments: header.price_adjustments,
       // New quotes get 'draft'; existing quotes keep their current status
       ...(!savedId && { status: 'draft' as const }),
     }
@@ -131,14 +135,16 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     if (!currentId) {
       const { data: created, error } = await supabase
         .from('quotes')
-        .insert({ ...headerPayload, user_id: userId })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert({ ...headerPayload, user_id: userId } as any)
         .select('id')
         .single()
       if (error || !created) return null
       currentId = created.id
       setSavedId(currentId)
     } else {
-      const { error } = await supabase.from('quotes').update(headerPayload).eq('id', currentId)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await supabase.from('quotes').update(headerPayload as any).eq('id', currentId)
       if (error) return null
     }
 
@@ -439,8 +445,19 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
           </button>
         </section>
 
+        {/* Price adjustments */}
+        <PriceAdjustmentsEditor
+          adjustments={header.price_adjustments}
+          onChange={(adjs: PriceAdjustment[]) => setHeaderField('price_adjustments', adjs)}
+        />
+
         {/* Summary */}
-        <QuoteSummary items={items} vatEnabled={vatEnabled} onVatToggle={handleVatToggle} />
+        <QuoteSummary
+          items={items}
+          vatEnabled={vatEnabled}
+          onVatToggle={handleVatToggle}
+          priceAdjustments={header.price_adjustments}
+        />
 
         {/* Finalize button */}
         <button onClick={finalizeQuote} disabled={saving || saveSuccess || autoSaving}

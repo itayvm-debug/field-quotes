@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calcSubtotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
+import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
 import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
 import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
@@ -147,8 +148,11 @@ export default async function QuoteViewPage({ params }: Props) {
     is_optional: i.is_optional,
   }))
   const subtotal = calcSubtotal(draftItems)
-  const vat = calcVat(subtotal, quote.vat_percentage)
-  const total = calcTotal(subtotal, vat)
+  const priceAdjs = parsePriceAdjustments(q.price_adjustments)
+  const adjResult = applyPriceAdjustments(subtotal, priceAdjs)
+  const adjustedSubtotal = adjResult.adjustedTotal
+  const vat = calcVat(adjustedSubtotal, quote.vat_percentage)
+  const total = calcTotal(adjustedSubtotal, vat)
   const totalFormatted = formatCurrency(total)
   const quoteStatus = quote.status as QuoteStatus
 
@@ -247,9 +251,23 @@ export default async function QuoteViewPage({ params }: Props) {
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
-              <span>סה״כ לפני מע״מ</span>
+              <span>{adjResult.adjustments.length > 0 ? 'סה״כ לפני התאמות' : 'סה״כ לפני מע״מ'}</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
+            {adjResult.adjustments.map((adj) => (
+              <div key={adj.id} className="flex justify-between text-sm">
+                <span className={adj.type === 'addition' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
+                  {adj.type === 'addition' ? '+' : '-'}{formatCurrency(adj.amount)}
+                </span>
+                <span className="text-gray-500">{adj.name} {adj.percentage}%</span>
+              </div>
+            ))}
+            {adjResult.adjustments.length > 0 && (
+              <div className="flex justify-between text-sm text-gray-600 border-t border-gray-100 pt-1">
+                <span>סה״כ לאחר התאמות</span>
+                <span className="font-medium">{formatCurrency(adjustedSubtotal)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm text-gray-600">
               <span>מע״מ {quote.vat_percentage}%</span>
               <span>{formatCurrency(vat)}</span>

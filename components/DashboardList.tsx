@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { calcSubtotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
+import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
 import {
   STATUS_LABELS, STATUS_COLORS,
   PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
@@ -258,8 +259,11 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
               unit_price: String(i.unit_price),
             }))
             const subtotal = calcSubtotal(draftItems)
-            const vat = calcVat(subtotal, quote.vat_percentage)
-            const total = calcTotal(subtotal, vat)
+            const { adjustedTotal: adjustedSubtotal } = applyPriceAdjustments(
+              subtotal, parsePriceAdjustments(quote.price_adjustments)
+            )
+            const vat = calcVat(adjustedSubtotal, quote.vat_percentage)
+            const total = calcTotal(adjustedSubtotal, vat)
             const totalFormatted = formatCurrency(total)
             const quoteStatus = quote.status as QuoteStatus
             const paymentStatus = ((quote.payment_status) ?? 'unpaid') as PaymentStatus

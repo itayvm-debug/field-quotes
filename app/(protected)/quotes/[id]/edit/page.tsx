@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { QuoteForm } from '@/components/QuoteForm'
+import { parsePriceAdjustments } from '@/lib/priceAdjustments'
 import type { QuoteItemDraft, QuoteHeaderDraft } from '@/types'
 
 interface Props {
@@ -40,6 +41,7 @@ export default async function EditQuotePage({ params }: Props) {
     payment_terms: quote.payment_terms,
     exclusions: quote.exclusions,
     vat_percentage: quote.vat_percentage,
+    price_adjustments: parsePriceAdjustments((quote as any).price_adjustments),
   }
 
   const items: QuoteItemDraft[] = (quote.quote_items ?? [])
