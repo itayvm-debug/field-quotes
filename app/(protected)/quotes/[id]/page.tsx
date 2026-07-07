@@ -251,7 +251,7 @@ export default async function QuoteViewPage({ params }: Props) {
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
-              <span>{adjResult.adjustments.length > 0 ? 'סה״כ לפני התאמות' : 'סה״כ לפני מע״מ'}</span>
+              <span>{adjResult.adjustments.length > 0 ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ'}</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
             {adjResult.adjustments.map((adj) => (
@@ -264,7 +264,7 @@ export default async function QuoteViewPage({ params }: Props) {
             ))}
             {adjResult.adjustments.length > 0 && (
               <div className="flex justify-between text-sm text-gray-600 border-t border-gray-100 pt-1">
-                <span>סה״כ לאחר התאמות</span>
+                <span>סה״כ לאחר הנחות/תוספות</span>
                 <span className="font-medium">{formatCurrency(adjustedSubtotal)}</span>
               </div>
             )}

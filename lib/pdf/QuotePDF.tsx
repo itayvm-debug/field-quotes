@@ -840,7 +840,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           <View style={s.summaryRow}>
             <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
             <Text style={s.summaryLabel}>
-              {adjResult.adjustments.length > 0 ? 'סה״כ לפני התאמות' : 'סה״כ לפני מע״מ'}
+              {adjResult.adjustments.length > 0 ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ'}
             </Text>
           </View>
           {adjResult.adjustments.map((adj) => (
@@ -854,7 +854,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           {adjResult.adjustments.length > 0 && (
             <View style={s.summaryRow}>
               <Text style={s.summaryValue}>{fmtCurrency(adjustedSubtotal)}</Text>
-              <Text style={s.summaryLabel}>סה״כ לאחר התאמות</Text>
+              <Text style={s.summaryLabel}>סה״כ לאחר הנחות/תוספות</Text>
             </View>
           )}
           <View style={s.summaryRow}>

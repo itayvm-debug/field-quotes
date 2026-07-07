@@ -132,6 +132,8 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
 
     let currentId = savedId
 
+    console.log('[quote-save-payload]', JSON.stringify(headerPayload, null, 2))
+
     if (!currentId) {
       const { data: created, error } = await supabase
         .from('quotes')
@@ -139,13 +141,20 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         .insert({ ...headerPayload, user_id: userId } as any)
         .select('id')
         .single()
-      if (error || !created) return null
+      if (error) {
+        console.error('[quote-save-error][insert]', { message: error.message, details: error.details, hint: error.hint, code: error.code })
+        return null
+      }
+      if (!created) return null
       currentId = created.id
       setSavedId(currentId)
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await supabase.from('quotes').update(headerPayload as any).eq('id', currentId)
-      if (error) return null
+      if (error) {
+        console.error('[quote-save-error][update]', { message: error.message, details: error.details, hint: error.hint, code: error.code })
+        return null
+      }
     }
 
     if (removedDbIds.length > 0) {

@@ -181,13 +181,13 @@ export function PriceAdjustmentsEditor({ adjustments, onChange }: Props) {
           onClick={addAdjustment}
           className="text-orange-600 text-sm font-semibold hover:text-orange-700 active:text-orange-800"
         >
-          + הוסף התאמה
+          + הוסף הנחה/תוספת
         </button>
-        <h3 className="font-semibold text-gray-700">התאמות מחיר</h3>
+        <h3 className="font-semibold text-gray-700">הנחה/תוספת</h3>
       </div>
       {adjustments.length > 0 && (
         <p className="text-xs text-gray-400 mb-3 text-right">
-          ההתאמות מחושבות לפי הסדר המוצג, כל אחת על הסכום המצטבר
+          ההנחות והתוספות מחושבות לפי הסדר המוצג
         </p>
       )}
       <div className="space-y-3">

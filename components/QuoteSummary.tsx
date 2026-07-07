@@ -30,7 +30,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle, priceAdjustments 
       <div className="space-y-2.5">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">
-            {hasAdjustments ? 'סה״כ לפני התאמות' : 'סה״כ לפני מע״מ'}
+            {hasAdjustments ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ'}
           </span>
           <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
         </div>
@@ -48,7 +48,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle, priceAdjustments 
 
         {hasAdjustments && (
           <div className="flex justify-between items-center border-t border-gray-100 pt-2">
-            <span className="text-sm text-gray-600 font-medium">סה״כ לאחר התאמות</span>
+            <span className="text-sm text-gray-600 font-medium">סה״כ לאחר הנחות/תוספות</span>
             <span className="font-medium text-gray-900">{formatCurrency(adjustedSubtotal)}</span>
           </div>
         )}
