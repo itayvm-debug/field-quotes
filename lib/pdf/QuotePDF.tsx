@@ -615,7 +615,12 @@ function renderDescriptionBlock(rawText: string, style: any): React.ReactElement
             // Second child in LTR flex = rightmost = correct for RTL numbered lists.
             <View key={idx} style={{ flexDirection: 'row', marginBottom: 1 }}>
               {renderBoldText(text, { ...style, flex: 1, textAlign: 'right' })}
-              <Text style={[style, { width: 20, textAlign: 'right' }]}>{num}.</Text>
+              {/* row-reverse: first child (digit) sits at the right edge,
+                  period is placed immediately to its left — bypasses BiDi */}
+              <View style={{ flexDirection: 'row-reverse', width: 20 }}>
+                <Text style={style}>{num}</Text>
+                <Text style={style}>.</Text>
+              </View>
             </View>
           )
         }
