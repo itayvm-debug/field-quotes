@@ -4,6 +4,37 @@ import { QuoteForm } from '@/components/QuoteForm'
 import { parsePriceAdjustments } from '@/lib/priceAdjustments'
 import type { QuoteItemDraft, QuoteHeaderDraft } from '@/types'
 
+// Shift quote_date to today and move valid_until by the same number of days.
+// Runs once per page load (server component) — never during client re-renders.
+function shiftDatesIfNeeded(
+  quoteDate: string | null,
+  validUntil: string | null,
+): { quote_date: string; valid_until: string } {
+  const today = new Date().toISOString().split('T')[0]
+  const origDate = quoteDate ?? today
+
+  if (origDate === today) {
+    return { quote_date: origDate, valid_until: validUntil ?? '' }
+  }
+
+  // Preserve original validity duration; fall back to 30 days if invalid/missing.
+  let newValidUntil: string
+  if (validUntil && validUntil > origDate) {
+    const days = Math.round(
+      (new Date(validUntil).getTime() - new Date(origDate).getTime()) / 86_400_000
+    )
+    const d = new Date(today)
+    d.setDate(d.getDate() + days)
+    newValidUntil = d.toISOString().split('T')[0]
+  } else {
+    const d = new Date(today)
+    d.setDate(d.getDate() + 30)
+    newValidUntil = d.toISOString().split('T')[0]
+  }
+
+  return { quote_date: today, valid_until: newValidUntil }
+}
+
 interface Props {
   params: Promise<{ id: string }>
 }
@@ -31,13 +62,15 @@ export default async function EditQuotePage({ params }: Props) {
     logoUrl = logoData?.signedUrl ?? null
   }
 
+  const { quote_date, valid_until } = shiftDatesIfNeeded(quote.quote_date, quote.valid_until)
+
   const header: QuoteHeaderDraft = {
     client_name: quote.client_name,
     client_address: quote.client_address,
     client_contact: quote.client_contact,
     project_description: quote.project_description,
-    quote_date: quote.quote_date,
-    valid_until: quote.valid_until ?? '',
+    quote_date,
+    valid_until,
     payment_terms: quote.payment_terms,
     exclusions: quote.exclusions,
     vat_percentage: quote.vat_percentage,

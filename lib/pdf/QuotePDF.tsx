@@ -589,6 +589,45 @@ function renderBoldText(rawText: string, style: any) {
 }
 
 
+// ── Numbered-line description renderer ───────────────────────────────────────
+// Detects lines of the form "1. text" inside a description and renders them as
+// a two-column flex row so the digit stays pinned to the right side regardless
+// of RTL BiDi resolution.  Non-numbered lines use the existing renderBoldText path.
+const NUMBERED_LINE_RE = /^(\d+)\.\s+(.+)$/
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderDescriptionBlock(rawText: string, style: any): React.ReactElement {
+  const lines = rawText.split(/\r?\n/)
+  const hasNumbered = lines.some((l) => NUMBERED_LINE_RE.test(l.trim()))
+
+  if (!hasNumbered) {
+    return renderBoldText(rawText, style)
+  }
+
+  return (
+    <View>
+      {lines.map((line, idx) => {
+        const match = line.trim().match(NUMBERED_LINE_RE)
+        if (match) {
+          const [, num, text] = match
+          return (
+            // Number pinned to the right; text fills the remaining width.
+            // Second child in LTR flex = rightmost = correct for RTL numbered lists.
+            <View key={idx} style={{ flexDirection: 'row', marginBottom: 1 }}>
+              {renderBoldText(text, { ...style, flex: 1, textAlign: 'right' })}
+              <Text style={[style, { width: 20, textAlign: 'right' }]}>{num}.</Text>
+            </View>
+          )
+        }
+        if (line.trim() === '') {
+          return <Text key={idx} style={style}>{' '}</Text>
+        }
+        return <View key={idx}>{renderBoldText(line, style)}</View>
+      })}
+    </View>
+  )
+}
+
 // Strip Unicode directional control characters before PDF rendering.
 // react-pdf/PDFKit renders them as visible glyphs instead of invisible
 // formatting hints, producing garbled artifacts (i, g, etc.).
@@ -867,7 +906,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
           <View style={s.colDesc}>
             {isOptional && <Text style={s.optionalLabel}>{'אפציה *‏'}</Text>}
-            {renderBoldText(item.description, s.tdText)}
+            {renderDescriptionBlock(item.description, s.tdText)}
           </View>
           <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
         </View>
