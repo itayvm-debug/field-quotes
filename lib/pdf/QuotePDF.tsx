@@ -625,37 +625,52 @@ function SectionTitle({ children }: { children: string }) {
 }
 
 // ── Page-split helpers ────────────────────────────────────────────────────────
-// Height constants (pt). Measured from stylesheet values; used before render to
-// bucket items into pages so react-pdf never auto-breaks mid-table.
-const CHARS_PER_DESC_LINE = 40   // desc column effective ~222pt (44% of 539 - paddingLeft:10 - paddingRight:5)
-const LINE_HEIGHT_PT       = 11  // fontSize 8.5 * ~1.3
-const ITEM_BASE_HEIGHT_PT  = 22  // tableRow paddingVertical:6 + 1 desc line + itemWrapper border
-const OPTIONAL_LABEL_EXTRA = 10  // optionalLabel fontSize 6.5 + marginBottom
-const NOTES_BASE_HEIGHT_PT = 14  // notesRow paddingTop:2 + paddingBottom:4 + 1 line at fontSize 7.5
-const NOTES_LINE_HEIGHT_PT = 10  // fontSize 7.5 * 1.3
-const NOTES_CHARS_PER_LINE = 45
-const IMAGE_ROW_HEIGHT_PT  = 70  // 64pt image + 6pt paddingBottom per row
-const IMAGES_PER_ROW       = 7   // floor((539pt usable - 12pt padding) / (64+4)pt per image)
+// Layout constants shared by styles and estimateItemHeight so a style tweak
+// automatically updates the height budget without a separate manual edit.
+//
+// All measurements are in pt. Heebo renders Hebrew at ~1.5× lineHeight factor
+// (not 1.3× like Latin), so fontSize 8.5 → ~13pt and fontSize 7.5 → ~11pt.
+//
+// desc column effective width: A4(595) – body.paddingH(28×2) = 539pt; 44% = 237pt;
+// minus colDesc.paddingLeft(10)+paddingRight(5) = 222pt.
+// Hebrew chars in Heebo at 8.5pt ≈ 5.5–6pt wide → conservative 36 chars/line.
+//
+// notesRow spans full itemWrapper width (539 – notesRow.paddingH(6×2) = 527pt).
+// Notes rarely wrap; 60 chars/line is still conservative.
+const LAYOUT = {
+  // tableRow.paddingVertical:3×2=6  + Heebo 8.5pt×1.5≈13pt line + itemWrapper.border:1 + 6pt buffer
+  itemRowBase:          26,
+  descLineHeight:       13,   // Heebo fontSize 8.5 × 1.5
+  descCharsPerLine:     36,   // 222pt / 6pt avg Hebrew char (conservative)
+  optionalLabelHeight:  10,   // optionalLabel fontSize 6.5 + marginBottom:1
+  // notesRow: paddingTop:2 + paddingBottom:4 = 6pt; label "הערה" at 7.5×1.5≈11pt
+  notesBase:            17,   // 6 (padding) + 11 (label line)
+  notesLineHeight:      11,   // Heebo fontSize 7.5 × 1.5
+  notesCharsPerLine:    60,   // 527pt effective width / ~5.5pt char (conservative)
+  // imageGrid: image.height:64 + imageGrid.paddingBottom:6; gap:4 between rows
+  imageRowHeight:       70,   // 64 + 6
+  imageRowGap:           4,
+  imagesPerRow:          7,   // floor((527pt – gap overhead) / (64+4)pt per slot)
+} as const
 
 function estimateItemHeight(item: PdfItem): number {
-  const descLines = Math.max(1, Math.ceil(item.description.length / CHARS_PER_DESC_LINE))
-  let h = ITEM_BASE_HEIGHT_PT + (descLines - 1) * LINE_HEIGHT_PT
-  if (item.is_optional) h += OPTIONAL_LABEL_EXTRA
+  const descLines = Math.max(1, Math.ceil(item.description.length / LAYOUT.descCharsPerLine))
+  let h = LAYOUT.itemRowBase + (descLines - 1) * LAYOUT.descLineHeight
+  if (item.is_optional) h += LAYOUT.optionalLabelHeight
   if (item.notes) {
     const notesParas = parseNotes(item.notes).filter((p) => p.text.trim())
     if (notesParas.length > 0) {
-      // +1 for the label line, then sum wrapped lines per paragraph
-      const wrappedLines = notesParas.reduce((acc, p) => {
+      const contentLines = notesParas.reduce((acc, p) => {
         const sublines = p.text.split('\n')
-        return acc + sublines.reduce((s, l) => s + Math.max(1, Math.ceil(l.length / NOTES_CHARS_PER_LINE)), 0)
+        return acc + sublines.reduce((s, l) => s + Math.max(1, Math.ceil(l.length / LAYOUT.notesCharsPerLine)), 0)
       }, 0)
-      h += NOTES_BASE_HEIGHT_PT + wrappedLines * NOTES_LINE_HEIGHT_PT
+      h += LAYOUT.notesBase + contentLines * LAYOUT.notesLineHeight
     }
   }
   const pdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl)
   if (pdfImages.length > 0) {
-    const imageRows = Math.ceil(pdfImages.length / IMAGES_PER_ROW)
-    h += imageRows * IMAGE_ROW_HEIGHT_PT + (imageRows - 1) * 4  // rows + inter-row gaps
+    const imageRows = Math.ceil(pdfImages.length / LAYOUT.imagesPerRow)
+    h += imageRows * LAYOUT.imageRowHeight + (imageRows - 1) * LAYOUT.imageRowGap
   }
   return h
 }
@@ -739,22 +754,62 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
     hasSignature: !!(creator && quote.status !== 'draft'),
   })
 
-  // Budgets are purely for table item rows — summaryReserve is NOT deducted here.
-  // Previously, subtracting it from every page's budget caused page 1 to be badly
-  // under-filled: the summary only appears on the last page, so reserving its space
-  // on every page (including page 1 when there are continuation pages) is wrong.
-  // A4 = 841pt; paddingBottom:40 -> usable = 801pt.
-  // Page 1 overhead: topBand(~70) + orangeLine(4) + titleBar(~38) + body.paddingTop(8) + clientCard(~85) + tableHeader(~20) ~= 245pt.
-  // Cont overhead:   continuationBand(~32) + orangeLine(3) + contLabel(~23) + tableHeader(~20) ~= 83pt (unchanged).
+  // ── Page item budgets ──────────────────────────────────────────────────────
+  // A4 = 841pt; page.paddingBottom:40 → usable = 801pt.
+  //
+  // PAGE_SAFETY_MARGIN: buffer that compensates for estimator imprecision and
+  // Heebo font metric variance.  20pt ≈ 1–2 text lines.
+  //
+  // Page 1 true overhead (measured from styles):
+  //   topBand       : paddingTop:10 + paddingBottom:6 + content (~67pt) = ~83pt
+  //   orangeLine    : 4pt
+  //   titleBar      : paddingVertical:6×2 + content (~33pt) + border:1 = ~46pt
+  //   body.paddingTop: 8pt
+  //   clientCard    : padding:8×2 + titleRow:17 + fields (~52pt) + marginBottom:6 = ~99pt
+  //   tableHeader   : paddingVertical:4×2 + text:11 + borderBottom:2 = ~21pt
+  //   Total                                                          = ~261pt
+  //
+  // Cont overhead (measured from styles):
+  //   continuationBand: paddingVertical:5×2 + content:22 = ~32pt
+  //   continuationOrangeLine: 3pt
+  //   continuationLabel: marginTop:8 + marginBottom:4 + text:11 = ~23pt
+  //   tableHeader   : ~21pt
+  //   Total                                                          = ~79pt
   const PAGE_USABLE             = 801
-  const FIRST_PAGE_ITEMS_BUDGET = Math.max(150, PAGE_USABLE - 245)  // ~= 556pt
-  const CONT_PAGE_ITEMS_BUDGET  = Math.max(300, PAGE_USABLE - 83)   // ~= 718pt
+  const PAGE_SAFETY_MARGIN      = 20
+  const FIRST_PAGE_OVERHEAD     = 261
+  const CONT_PAGE_OVERHEAD      = 79
+  const FIRST_PAGE_ITEMS_BUDGET = PAGE_USABLE - FIRST_PAGE_OVERHEAD - PAGE_SAFETY_MARGIN  // 520pt
+  const CONT_PAGE_ITEMS_BUDGET  = PAGE_USABLE - CONT_PAGE_OVERHEAD  - PAGE_SAFETY_MARGIN  // 702pt
 
   let itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
 
+  // Dev-mode invariant check: warn if any chunk exceeds its budget.
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[pdf-pagination-debug]', {
+      itemPages: itemPages.map((page) =>
+        page.map((item) => ({
+          item_number: item.item_number,
+          estimatedHeight: estimateItemHeight(item),
+          descriptionLength: item.description?.length ?? 0,
+          notesLength: item.notes?.length ?? 0,
+          imageCount: item.images?.filter((img) => img.include_in_pdf && img.signedUrl).length ?? 0,
+        }))
+      ),
+      FIRST_PAGE_ITEMS_BUDGET,
+      CONT_PAGE_ITEMS_BUDGET,
+      summaryReserve,
+    })
+    itemPages.forEach((page, pi) => {
+      const budget = pi === 0 ? FIRST_PAGE_ITEMS_BUDGET : CONT_PAGE_ITEMS_BUDGET
+      const h = page.reduce((acc, it) => acc + estimateItemHeight(it), 0)
+      if (h > budget) {
+        console.warn(`[pdf-pagination-debug] page ${pi + 1} estimated height ${h}pt exceeds budget ${budget}pt by ${h - budget}pt`)
+      }
+    })
+  }
+
   // Ensure the last page has room for the summary block.
-  // If items on the last page + summaryReserve exceed that page's budget, spill
-  // the last item onto a new continuation page so the summary never overflows.
   {
     const lastIdx    = itemPages.length - 1
     const lastBudget = lastIdx === 0 ? FIRST_PAGE_ITEMS_BUDGET : CONT_PAGE_ITEMS_BUDGET
@@ -765,13 +820,14 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
     }
   }
 
-  // Post-processing: if page 1 is under-utilised (<70% full) and page 2 has multiple
-  // items, pull items from page 2 to page 1 as long as they fit.
-  // Guard — skip when page 2 has only 1 item: that item was placed there by the
-  // summary spill above, and pulling it back would trigger the spill again (conflict).
+  // Post-processing: if page 1 is under-utilised (<60%) and page 2 has multiple
+  // items, pull items from page 2 to page 1 as long as they fit within budget.
+  // Threshold is 60% (not 70%) to avoid aggressively pulling items that would
+  // cause react-pdf to overflow the physical page.
+  // Guard: skip when page 2 has only 1 item (placed there by the summary spill).
   if (itemPages.length > 1 && itemPages[1].length > 1) {
     let page1H = itemPages[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
-    while (itemPages[1].length > 1 && page1H / FIRST_PAGE_ITEMS_BUDGET < 0.70) {
+    while (itemPages[1].length > 1 && page1H / FIRST_PAGE_ITEMS_BUDGET < 0.60) {
       const candidate  = itemPages[1][0]
       const candidateH = estimateItemHeight(candidate)
       if (page1H + candidateH > FIRST_PAGE_ITEMS_BUDGET) break
