@@ -1,4 +1,4 @@
-﻿import path from 'path'
+import path from 'path'
 import React from 'react'
 import {
   Document,
@@ -297,15 +297,15 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // RTL column order (visual right→left): מס׳ | תיאור עבודה | יח׳ | כמות | מחיר יח׳ | סה״כ
+  // RTL column order (visual right->left): מס׳ | תיאור עבודה | יח׳ | כמות | מחיר יח׳ | סה״כ
   // Fixed widths (not flex) so react-pdf wraps text within a hard boundary.
   // Total: 17+17+8+9+44+5 = 100%
   colTotal: { width: '17%' },
   colPrice: { width: '17%' },
   colQty:   { width: '8%' },
-  colUnit:  { width: '9%' },                                          // +1% for clearer יח׳ column
-  colDesc:  { width: '44%', paddingLeft: 10, paddingRight: 5 },       // left gap vs יח׳, right gap vs מס׳
-  colNum:   { width: '5%' },                                          // -1% to balance
+  colUnit:  { width: '9%' },
+  colDesc:  { width: '44%', paddingLeft: 10, paddingRight: 5 },
+  colNum:   { width: '5%' },
 
   tableRowOptional: {
     backgroundColor: '#FFFBEB',
@@ -506,7 +506,10 @@ const s = StyleSheet.create({
     fontWeight: 'bold' as never,
   },
 
-  // ── Compact continuation header (in-flow on page 2 continuation block) ───────
+  // ── Compact continuation header ───────────────────────────────────────────────
+  // NOTE: marginHorizontal:-28 was originally needed because the band lived inside
+  // s.body (paddingHorizontal:28). In the new multi-Page structure it is placed
+  // directly in the Page (paddingHorizontal:0), so we override it to 0 at render time.
   continuationBand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -588,9 +591,9 @@ function renderBoldText(rawText: string, style: any) {
 
 // Strip Unicode directional control characters before PDF rendering.
 // react-pdf/PDFKit renders them as visible glyphs instead of invisible
-// formatting hints, producing garbled artifacts (i, g, Ê, etc.).
+// formatting hints, producing garbled artifacts (i, g, etc.).
 function stripBidiControlChars(text: string): string {
-  return text.replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+  return text.replace(/[‎‏‪-‮⁦-⁩]/g, '')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -624,7 +627,7 @@ function SectionTitle({ children }: { children: string }) {
 // ── Page-split helpers ────────────────────────────────────────────────────────
 // Height constants (pt). Measured from stylesheet values; used before render to
 // bucket items into pages so react-pdf never auto-breaks mid-table.
-const CHARS_PER_DESC_LINE = 40   // desc column effective ~222pt (44% of 539 − paddingLeft:10 − paddingRight:5)
+const CHARS_PER_DESC_LINE = 40   // desc column effective ~222pt (44% of 539 - paddingLeft:10 - paddingRight:5)
 const LINE_HEIGHT_PT       = 11  // fontSize 8.5 * ~1.3
 const ITEM_BASE_HEIGHT_PT  = 22  // tableRow paddingVertical:6 + 1 desc line + itemWrapper border
 const OPTIONAL_LABEL_EXTRA = 10  // optionalLabel fontSize 6.5 + marginBottom
@@ -632,7 +635,7 @@ const NOTES_BASE_HEIGHT_PT = 14  // notesRow paddingTop:2 + paddingBottom:4 + 1 
 const NOTES_LINE_HEIGHT_PT = 10  // fontSize 7.5 * 1.3
 const NOTES_CHARS_PER_LINE = 45
 const IMAGE_ROW_HEIGHT_PT  = 70  // 64pt image + 6pt paddingBottom per row
-const IMAGES_PER_ROW       = 7   // floor((539pt usable − 12pt padding) / (64+4)pt per image)
+const IMAGES_PER_ROW       = 7   // floor((539pt usable - 12pt padding) / (64+4)pt per image)
 
 function estimateItemHeight(item: PdfItem): number {
   const descLines = Math.max(1, Math.ceil(item.description.length / CHARS_PER_DESC_LINE))
@@ -740,12 +743,12 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   // Previously, subtracting it from every page's budget caused page 1 to be badly
   // under-filled: the summary only appears on the last page, so reserving its space
   // on every page (including page 1 when there are continuation pages) is wrong.
-  // A4 = 841pt; paddingBottom:40 → usable = 801pt.
-  // Page 1 overhead: topBand(~70) + orangeLine(4) + titleBar(~38) + body.paddingTop(8) + clientCard(~85) + tableHeader(~20) ≈ 245pt.
-  // Cont overhead:   continuationBand(~32) + orangeLine(3) + contLabel(~23) + tableHeader(~20) ≈ 83pt (unchanged).
+  // A4 = 841pt; paddingBottom:40 -> usable = 801pt.
+  // Page 1 overhead: topBand(~70) + orangeLine(4) + titleBar(~38) + body.paddingTop(8) + clientCard(~85) + tableHeader(~20) ~= 245pt.
+  // Cont overhead:   continuationBand(~32) + orangeLine(3) + contLabel(~23) + tableHeader(~20) ~= 83pt (unchanged).
   const PAGE_USABLE             = 801
-  const FIRST_PAGE_ITEMS_BUDGET = Math.max(150, PAGE_USABLE - 245)  // ≈ 556pt
-  const CONT_PAGE_ITEMS_BUDGET  = Math.max(300, PAGE_USABLE - 83)   // ≈ 718pt
+  const FIRST_PAGE_ITEMS_BUDGET = Math.max(150, PAGE_USABLE - 245)  // ~= 556pt
+  const CONT_PAGE_ITEMS_BUDGET  = Math.max(300, PAGE_USABLE - 83)   // ~= 718pt
 
   let itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
 
@@ -781,15 +784,15 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
     itemPages.slice(0, i).reduce((acc, p) => acc + p.length, 0)
   )
 
-  // Shared table header JSX — used in both the main table and the page-2 continuation
+  // Shared table header JSX — used in both the main table and the continuation pages
   const tableHeaderRow = (
     <View style={s.tableHeader}>
-      <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>סה״כ</Text></View>
-      <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>מחיר יח׳</Text></View>
-      <View style={s.colQty}><Text style={[s.thText, { textAlign: 'left' }]}>כמות</Text></View>
-      <View style={s.colUnit}><Text style={s.thText}>יח׳</Text></View>
-      <View style={s.colDesc}><Text style={s.thText}>תיאור עבודה</Text></View>
-      <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.thText}>מס׳</Text></View>
+      <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>{'סה״כ'}</Text></View>
+      <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>{'מחיר יח׳'}</Text></View>
+      <View style={s.colQty}><Text style={[s.thText, { textAlign: 'left' }]}>{'כמות'}</Text></View>
+      <View style={s.colUnit}><Text style={s.thText}>{'יח׳'}</Text></View>
+      <View style={s.colDesc}><Text style={s.thText}>{'תיאור עבודה'}</Text></View>
+      <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.thText}>{'מס׳'}</Text></View>
     </View>
   )
 
@@ -807,7 +810,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
           <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
           <View style={s.colDesc}>
-            {isOptional && <Text style={s.optionalLabel}>אופציה *‏</Text>}
+            {isOptional && <Text style={s.optionalLabel}>{'אפציה *‏'}</Text>}
             {renderBoldText(item.description, s.tdText)}
           </View>
           <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
@@ -831,16 +834,17 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   }
 
   // Summary + payment terms side-by-side + exclusions + signature.
-  // Shared between single-page and continuation-page paths.
+  // Rendered only on the last page.
   const renderSummaryBlock = () => (
     <View wrap={false}>
-      {/* Summary box (LEFT) and payment terms (RIGHT) at the same height */}
       <View style={{ flexDirection: 'row', gap: 12, marginBottom: 6, alignItems: 'flex-start' }}>
         <View style={s.summaryBox}>
           <View style={s.summaryRow}>
             <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
             <Text style={s.summaryLabel}>
-              {adjResult.adjustments.length > 0 ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ'}
+              {adjResult.adjustments.length > 0
+                ? 'סה״כ לפני הנחות/תוספות'
+                : 'סה״כ לפני מע״מ'}
             </Text>
           </View>
           {adjResult.adjustments.map((adj) => (
@@ -854,23 +858,25 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           {adjResult.adjustments.length > 0 && (
             <View style={s.summaryRow}>
               <Text style={s.summaryValue}>{fmtCurrency(adjustedSubtotal)}</Text>
-              <Text style={s.summaryLabel}>סה״כ לאחר הנחות/תוספות</Text>
+              <Text style={s.summaryLabel}>{'סה״כ לאחר הנחות/תוספות'}</Text>
             </View>
           )}
           <View style={s.summaryRow}>
             <Text style={s.summaryValue}>{fmtCurrency(vatAmount)}</Text>
-            <Text style={s.summaryLabel}>מע״מ {quote.vat_percentage}%</Text>
+            <Text style={s.summaryLabel}>{'מע״מ'} {quote.vat_percentage}%</Text>
           </View>
           <View style={s.summaryTotalRow}>
             <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
             <Text style={s.summaryTotalLabel}>
-              {quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}
+              {quote.vat_percentage > 0
+                ? 'סה״כ כולל מע״מ'
+                : 'סה״כ'}
             </Text>
           </View>
         </View>
         {quote.payment_terms ? (
           <View style={{ flex: 1, paddingTop: 2 }}>
-            <Text style={s.termLabel}>תנאי תשלום</Text>
+            <Text style={s.termLabel}>{'תנאי תשלום'}</Text>
             <Text style={s.termValue}>{fixRtlText(quote.payment_terms)}</Text>
           </View>
         ) : null}
@@ -884,7 +890,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
       )}
       {quote.exclusions ? (
         <View style={{ borderTopWidth: 1, borderTopColor: GRAY_MID, paddingTop: 5, marginTop: 4, marginBottom: 6 }}>
-          <Text style={s.termLabel}>החרגות / הערות</Text>
+          <Text style={s.termLabel}>{'החרגות / הערות'}</Text>
           <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
         </View>
       ) : null}
@@ -904,16 +910,66 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
     </View>
   )
 
+  // ── Shared per-page elements ───────────────────────────────────────────────
+  // Footer — position:absolute places it at bottom of each Page automatically.
+  // `fixed` ensures it appears on any overflow pages within that Page element.
+  const renderFooter = () => (
+    <View style={s.footer} fixed>
+      <View style={s.footerLine} />
+      <View style={s.footerRow}>
+        <Text
+          style={s.footerPageNum}
+          render={({ pageNumber, totalPages }) =>
+            `עמוד ${pageNumber} מתוך ${totalPages}`
+          }
+        />
+      </View>
+      {company.footer_text ? (
+        <View style={s.footerCompanyRow}>
+          <Text style={s.footerText}>{company.footer_text}</Text>
+        </View>
+      ) : null}
+    </View>
+  )
+
+  // Draft watermark — fixed so it appears even if a Page overflows
+  const renderWatermark = () =>
+    quote.status === 'draft' ? (
+      <View style={s.watermarkContainer} fixed>
+        <View style={s.watermarkInner}>
+          <Text style={s.watermarkText}>{'טיוטה'}</Text>
+        </View>
+      </View>
+    ) : null
+
+  // Compact continuation header — placed directly in the Page (no s.body wrapper),
+  // so we override the marginHorizontal:-28 that was only needed when inside s.body.
+  const renderContinuationHeader = () => (
+    <>
+      <View style={[s.continuationBand, { marginHorizontal: 0 }]}>
+        <View style={s.continuationBandLeft}>
+          <Text style={s.continuationQuoteTitle}>{'הצעת מחיר'}</Text>
+          <Text style={s.continuationQuoteNum}>{quote.quote_number ?? '—'}</Text>
+        </View>
+        <View style={s.continuationBandRight}>
+          <Text style={s.continuationCompanyName}>{company.company_name}</Text>
+          <Image src={effectiveLogo} style={s.logoSmall} />
+        </View>
+      </View>
+      <View style={[s.continuationOrangeLine, { marginHorizontal: 0 }]} />
+    </>
+  )
+
   return (
     <Document>
-      <Page size="A4" style={s.page}>
 
-        {/* ── Top header band ─────────────────────────────────────────── */}
+      {/* ── Page 1: full header + client card + first item chunk ── */}
+      <Page size="A4" style={s.page}>
         <View style={s.topBand}>
           <View style={s.topBandLeft}>
             <Text style={s.companyName}>{company.company_name}</Text>
             {company.company_id_number ? (
-              <Text style={s.companyDetail}>ח.פ: {company.company_id_number}</Text>
+              <Text style={s.companyDetail}>{'ח.פ: '}{company.company_id_number}</Text>
             ) : null}
             {company.address ? (
               <Text style={s.companyDetail}>{company.address}</Text>
@@ -930,129 +986,97 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           </View>
         </View>
 
-        {/* ── Orange accent line ──────────────────────────────────────── */}
         <View style={s.orangeLine} />
 
-        {/* ── Quote title bar ─────────────────────────────────────────── */}
         <View style={s.titleBar}>
           <View style={s.quoteMeta}>
             <Text style={s.quoteNumber}>{quote.quote_number ?? '—'}</Text>
             {quote.valid_until ? (
-              <Text style={s.quoteDateText}>בתוקף עד {fmtDate(quote.valid_until)}</Text>
+              <Text style={s.quoteDateText}>{'בתוקף עד '}{fmtDate(quote.valid_until)}</Text>
             ) : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={s.quoteTitle}>הצעת מחיר</Text>
+            <Text style={s.quoteTitle}>{'הצעת מחיר'}</Text>
             <Text style={[s.quoteDateText, { marginTop: 2 }]}>
-              תאריך ההצעה: {fmtDate(quote.quote_date)}
+              {'תאריך ההצעה: '}{fmtDate(quote.quote_date)}
             </Text>
           </View>
         </View>
 
-        {/* ── Body ────────────────────────────────────────────────────── */}
         <View style={s.body}>
-
-          {/* ── Client info — 2-column layout to reduce vertical height ── */}
           <View style={s.sectionCard}>
-            <SectionTitle>פרטי לקוח</SectionTitle>
+            <SectionTitle>{'פרטי לקוח'}</SectionTitle>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-
-              {/* LEFT column (visual left = secondary info): כתובת + תיאור פרויקט */}
               <View style={{ flex: 1, gap: 4 }}>
                 {quote.client_address ? (
                   <View>
-                    <Text style={s.fieldLabel}>כתובת העבודה</Text>
+                    <Text style={s.fieldLabel}>{'כתובת העבודה'}</Text>
                     <Text style={s.fieldValue}>{quote.client_address}</Text>
                   </View>
                 ) : null}
                 {quote.project_description ? (
                   <View>
-                    <Text style={s.fieldLabel}>תיאור הפרויקט</Text>
+                    <Text style={s.fieldLabel}>{'תיאור הפרויקט'}</Text>
                     <Text style={[s.fieldValue, { fontWeight: 'normal' as never }]}>
                       {fixRtlText(quote.project_description)}
                     </Text>
                   </View>
                 ) : null}
               </View>
-
-              {/* RIGHT column (visual right = primary info): לכבוד + איש קשר */}
               <View style={{ flex: 1, gap: 4 }}>
                 <View>
-                  <Text style={s.fieldLabel}>לכבוד</Text>
+                  <Text style={s.fieldLabel}>{'לכבוד'}</Text>
                   <Text style={[s.fieldValue, { fontSize: 10 }]}>{quote.client_name || '—'}</Text>
                 </View>
                 {quote.client_contact ? (
                   <View>
-                    <Text style={s.fieldLabel}>איש קשר</Text>
+                    <Text style={s.fieldLabel}>{'איש קשר'}</Text>
                     <Text style={s.fieldValue}>{quote.client_contact}</Text>
                   </View>
                 ) : null}
               </View>
-
             </View>
           </View>
 
-          {/* ── Items table (page 1) ───────────────────────────────── */}
           <View style={s.tableContainer}>
             {tableHeaderRow}
             {itemPages[0].map((item, idx) => renderItemRow(item, itemPageOffsets[0] + idx))}
           </View>
 
-          {/* ── Continuation pages + summary ────────────────────────── */}
-          {itemPages.length === 1
-            ? renderSummaryBlock()
-            : itemPages.slice(1).map((pageItems, pi) => (
-                <View key={pi} break>
-                  <View style={s.continuationBand}>
-                    <View style={s.continuationBandLeft}>
-                      <Text style={s.continuationQuoteTitle}>הצעת מחיר</Text>
-                      <Text style={s.continuationQuoteNum}>{quote.quote_number ?? '—'}</Text>
-                    </View>
-                    <View style={s.continuationBandRight}>
-                      <Text style={s.continuationCompanyName}>{company.company_name}</Text>
-                      <Image src={effectiveLogo} style={s.logoSmall} />
-                    </View>
-                  </View>
-                  <View style={s.continuationOrangeLine} />
-                  <Text style={s.continuationLabel}>{'המשך טבלת סעיפים‏'}</Text>
-                  <View style={s.tableContainer}>
-                    {tableHeaderRow}
-                    {pageItems.map((item, idx) => renderItemRow(item, itemPageOffsets[pi + 1] + idx))}
-                  </View>
-                  {pi === itemPages.length - 2 && renderSummaryBlock()}
-                </View>
-              ))
-          }
-
+          {itemPages.length === 1 && renderSummaryBlock()}
         </View>
 
-        {/* ── Draft watermark (over body, under footer) ───────────────── */}
-        {quote.status === 'draft' && (
-          <View style={s.watermarkContainer} fixed>
-            <View style={s.watermarkInner}>
-              <Text style={s.watermarkText}>טיוטה</Text>
-            </View>
-          </View>
-        )}
-
-        {/* ── Footer ──────────────────────────────────────────────────── */}
-        <View style={s.footer} fixed>
-          <View style={s.footerLine} />
-          <View style={s.footerRow}>
-            <Text
-              style={s.footerPageNum}
-              render={({ pageNumber, totalPages }) =>
-                `עמוד ${pageNumber} מתוך ${totalPages}`
-              }
-            />
-          </View>
-          {company.footer_text ? (
-            <View style={s.footerCompanyRow}>
-              <Text style={s.footerText}>{company.footer_text}</Text>
-            </View>
-          ) : null}
-        </View>
+        {renderWatermark()}
+        {renderFooter()}
       </Page>
+
+      {/* ── Continuation pages — each chunk gets its own real <Page> ──────────
+          Previously <View break> inside a single Page was used, which let react-pdf's
+          natural flow push items past the break point before the continuation header
+          rendered. Using separate <Page> elements guarantees the header is always the
+          first content on every continuation page. */}
+      {itemPages.slice(1).map((pageItems, pi) => {
+        const isLastPage = pi === itemPages.length - 2
+        return (
+          <Page key={pi} size="A4" style={s.page}>
+            {renderContinuationHeader()}
+
+            {/* Same horizontal padding as s.body */}
+            <View style={{ paddingHorizontal: 28 }}>
+              <Text style={s.continuationLabel}>{'המשך טבלת סעיפים‏'}</Text>
+              <View style={s.tableContainer}>
+                {tableHeaderRow}
+                {pageItems.map((item, idx) => renderItemRow(item, itemPageOffsets[pi + 1] + idx))}
+              </View>
+              {isLastPage && renderSummaryBlock()}
+            </View>
+
+            {renderWatermark()}
+            {renderFooter()}
+          </Page>
+        )
+      })}
+
     </Document>
   )
 }
