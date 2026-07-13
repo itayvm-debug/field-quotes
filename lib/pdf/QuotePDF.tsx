@@ -722,32 +722,45 @@ function estimateItemHeight(item: PdfItem): number {
 // Estimates the rendered height of the summary block (financial totals, payment
 // terms, optional footnote, exclusions, signature). Used to reserve space on the
 // last items page so the block never gets pushed alone to a new page.
+//
+// Values derived from stylesheet measurements:
+//   summaryRow: paddingVertical:4×2=8 + text:12 + border:1 = 21pt each
+//   summaryTotalRow: paddingVertical:5×2=10 + text:14 = 24pt
+//   summaryBox borders + marginBottom: ~8pt
+//   Payment terms: side-by-side with the box — only adds height when taller than box
+//   Exclusions: borderTop+paddingTop+marginTop+label ≈ 28pt + 11pt/line
+//   Signature: borderTop+paddingTop+greeting+name+company+image ≈ 80pt
 function estimateSummaryBlockHeight({
   hasPaymentTerms,
   hasOptionItems,
   exclusionsText,
   hasSignature,
+  adjCount,
 }: {
   hasPaymentTerms: boolean
   hasOptionItems: boolean
   exclusionsText: string
   hasSignature: boolean
+  adjCount: number
 }): number {
-  // Financial summary box (3 rows ~66pt) + marginBottom:6 + some border/spacing
-  let h = 80
-  // Payment terms is side-by-side with summary box; may add height if text is long
-  if (hasPaymentTerms) h += 15
-  // Optional footnote: marginTop:6 + 1 line text
-  if (hasOptionItems) h += 22
-  // Exclusions: overhead (borderTop + padding + margins + label ~36pt) + content lines
+  // Base: subtotal row + VAT row + total row + borders + marginBottom
+  // (2 × summaryRow:21) + summaryTotalRow:24 + borders+margin:8 = 74pt
+  // Each price adjustment adds 1 summaryRow; if any adjustments also add
+  // the "after adjustments" row (+1 more).
+  let h = 74 + (adjCount > 0 ? (adjCount + 1) * 21 : 0)
+  // Payment terms is side-by-side — conservative +8pt for extra height above box
+  if (hasPaymentTerms) h += 8
+  // Optional footnote: marginTop:6 + text line:12 = 18pt
+  if (hasOptionItems) h += 18
+  // Exclusions: overhead 28pt + 11pt per wrapped line
   if (exclusionsText) {
     const lines = Math.max(1, Math.ceil(exclusionsText.length / 55))
-    h += 36 + lines * 12
+    h += 28 + lines * 11
   }
-  // Signature block: greeting + name + company + image
-  if (hasSignature) h += 96
-  // Safety buffer for rounding and rendering variance
-  h += 40
+  // Signature: borderTop+paddingTop+greeting+name+company+image = ~80pt
+  if (hasSignature) h += 80
+  // Small buffer — PAGE_SAFETY_MARGIN is already applied to item budgets separately
+  h += 15
   return h
 }
 
@@ -796,41 +809,82 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
     hasOptionItems: hasOptional,
     exclusionsText: quote.exclusions ?? '',
     hasSignature: !!(creator && quote.status !== 'draft'),
+    adjCount: adjResult.adjustments.length,
   })
 
   // ── Page item budgets ──────────────────────────────────────────────────────
   // A4 = 841pt; page.paddingBottom:40 → usable = 801pt.
   //
-  // PAGE_SAFETY_MARGIN: buffer that compensates for estimator imprecision and
-  // Heebo font metric variance.  20pt ≈ 1–2 text lines.
+  // PAGE_1_CAPACITY: true physical space for items + summary combined on page 1.
+  // FIRST_PAGE_ITEMS_BUDGET: conservative items-only budget (safety deducted) so
+  //   react-pdf never auto-overflows a Page element when items are many/tall.
   //
-  // Page 1 true overhead (measured from styles):
-  //   topBand       : paddingTop:10 + paddingBottom:6 + content (~67pt) = ~83pt
-  //   orangeLine    : 4pt
-  //   titleBar      : paddingVertical:6×2 + content (~33pt) + border:1 = ~46pt
-  //   body.paddingTop: 8pt
-  //   clientCard    : padding:8×2 + titleRow:17 + fields (~52pt) + marginBottom:6 = ~99pt
-  //   tableHeader   : paddingVertical:4×2 + text:11 + borderBottom:2 = ~21pt
-  //   Total                                                          = ~261pt
-  //
-  // Cont overhead (measured from styles):
-  //   continuationBand: paddingVertical:5×2 + content:22 = ~32pt
-  //   continuationOrangeLine: 3pt
-  //   continuationLabel: marginTop:8 + marginBottom:4 + text:11 = ~23pt
-  //   tableHeader   : ~21pt
-  //   Total                                                          = ~79pt
+  // Page 1 overhead (measured from styles):
+  //   topBand       : ~75pt  orangeLine: 4pt  titleBar: ~51pt
+  //   body.paddingTop: 8pt   clientCard: ~102pt  tableHeader: ~21pt  → ~261pt
+  // Cont overhead: continuationBand:32 + orangeLine:3 + contLabel:23 + header:21 → ~79pt
   const PAGE_USABLE             = 801
   const PAGE_SAFETY_MARGIN      = 20
   const FIRST_PAGE_OVERHEAD     = 261
   const CONT_PAGE_OVERHEAD      = 79
-  const FIRST_PAGE_ITEMS_BUDGET = PAGE_USABLE - FIRST_PAGE_OVERHEAD - PAGE_SAFETY_MARGIN  // 520pt
-  const CONT_PAGE_ITEMS_BUDGET  = PAGE_USABLE - CONT_PAGE_OVERHEAD  - PAGE_SAFETY_MARGIN  // 702pt
+  const PAGE_1_CAPACITY         = PAGE_USABLE - FIRST_PAGE_OVERHEAD          // 540pt
+  const FIRST_PAGE_ITEMS_BUDGET = PAGE_1_CAPACITY - PAGE_SAFETY_MARGIN       // 520pt
+  const CONT_PAGE_ITEMS_BUDGET  = PAGE_USABLE - CONT_PAGE_OVERHEAD - PAGE_SAFETY_MARGIN  // 702pt
 
-  let itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+  const allItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
 
-  // Dev-mode invariant check: warn if any chunk exceeds its budget.
+  // Fast path: if every item + the summary block fits on one physical page, skip
+  // multi-page splitting entirely.  This prevents short quotes from being split
+  // by an overly-conservative summaryReserve check.
+  let itemPages: PdfItem[][]
+  if (allItemsH + summaryReserve <= PAGE_1_CAPACITY) {
+    itemPages = items.length > 0 ? [items.slice()] : [[]]
+  } else {
+    itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+
+    // Ensure the last page has room for the summary block.
+    // Use PAGE_1_CAPACITY for the single-page case so we don't double-count
+    // the safety margin that is already inside summaryReserve.
+    {
+      const lastIdx = itemPages.length - 1
+      const lastCap = lastIdx === 0 ? PAGE_1_CAPACITY : CONT_PAGE_ITEMS_BUDGET
+      const lastH   = itemPages[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
+      if (lastH + summaryReserve > lastCap && itemPages[lastIdx].length > 1) {
+        const moved = itemPages[lastIdx].pop()!
+        itemPages.push([moved])
+
+        // After the spill, check if merging everything back to one page would work.
+        // Handles the case where the spill was triggered by a tiny margin that the
+        // summaryReserve safety buffer already covers.
+        if (itemPages.length === 2) {
+          const mergedH = [...itemPages[0], ...itemPages[1]]
+            .reduce((acc, it) => acc + estimateItemHeight(it), 0)
+          if (mergedH + summaryReserve <= PAGE_1_CAPACITY) {
+            itemPages = [items.slice()]
+          }
+        }
+      }
+    }
+
+    // Post-processing: if page 1 is under-utilised (<60%) and page 2 has multiple
+    // items, pull items from page 2 to page 1 within the conservative items budget.
+    if (itemPages.length > 1 && itemPages[1].length > 1) {
+      let page1H = itemPages[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
+      while (itemPages[1].length > 1 && page1H / FIRST_PAGE_ITEMS_BUDGET < 0.60) {
+        const candidate  = itemPages[1][0]
+        const candidateH = estimateItemHeight(candidate)
+        if (page1H + candidateH > FIRST_PAGE_ITEMS_BUDGET) break
+        itemPages[0].push(itemPages[1].shift()!)
+        page1H += candidateH
+      }
+    }
+  }
+
+  // Dev-mode: pagination diagnostics for quick debugging.
   if (process.env.NODE_ENV !== 'production') {
+    const page1H = itemPages[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
     console.log('[pdf-pagination-debug]', {
+      quoteNumber: quote.quote_number,
       itemPages: itemPages.map((page) =>
         page.map((item) => ({
           item_number: item.item_number,
@@ -840,44 +894,21 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
           imageCount: item.images?.filter((img) => img.include_in_pdf && img.signedUrl).length ?? 0,
         }))
       ),
+      allItemsH,
+      summaryReserve,
+      PAGE_1_CAPACITY,
       FIRST_PAGE_ITEMS_BUDGET,
       CONT_PAGE_ITEMS_BUDGET,
-      summaryReserve,
+      fastPath: allItemsH + summaryReserve <= PAGE_1_CAPACITY,
+      estimatedFirstPageUsedHeight: page1H,
     })
     itemPages.forEach((page, pi) => {
       const budget = pi === 0 ? FIRST_PAGE_ITEMS_BUDGET : CONT_PAGE_ITEMS_BUDGET
       const h = page.reduce((acc, it) => acc + estimateItemHeight(it), 0)
       if (h > budget) {
-        console.warn(`[pdf-pagination-debug] page ${pi + 1} estimated height ${h}pt exceeds budget ${budget}pt by ${h - budget}pt`)
+        console.warn(`[pdf-pagination-debug] page ${pi + 1} height ${h}pt > budget ${budget}pt (+${h - budget}pt)`)
       }
     })
-  }
-
-  // Ensure the last page has room for the summary block.
-  {
-    const lastIdx    = itemPages.length - 1
-    const lastBudget = lastIdx === 0 ? FIRST_PAGE_ITEMS_BUDGET : CONT_PAGE_ITEMS_BUDGET
-    const lastH      = itemPages[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
-    if (lastH + summaryReserve > lastBudget && itemPages[lastIdx].length > 1) {
-      const moved = itemPages[lastIdx].pop()!
-      itemPages.push([moved])
-    }
-  }
-
-  // Post-processing: if page 1 is under-utilised (<60%) and page 2 has multiple
-  // items, pull items from page 2 to page 1 as long as they fit within budget.
-  // Threshold is 60% (not 70%) to avoid aggressively pulling items that would
-  // cause react-pdf to overflow the physical page.
-  // Guard: skip when page 2 has only 1 item (placed there by the summary spill).
-  if (itemPages.length > 1 && itemPages[1].length > 1) {
-    let page1H = itemPages[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
-    while (itemPages[1].length > 1 && page1H / FIRST_PAGE_ITEMS_BUDGET < 0.60) {
-      const candidate  = itemPages[1][0]
-      const candidateH = estimateItemHeight(candidate)
-      if (page1H + candidateH > FIRST_PAGE_ITEMS_BUDGET) break
-      itemPages[0].push(itemPages[1].shift()!)
-      page1H += candidateH
-    }
   }
 
   const itemPageOffsets = itemPages.map((_, i) =>
