@@ -461,8 +461,8 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   projectImageImg: {
-    width: '72%',
-    height: 160,
+    width: '58%',
+    maxHeight: 120,
     borderRadius: 3,
   },
   projectImageCaption: {
@@ -788,9 +788,10 @@ function estimateSummaryBlockHeight({
 }
 
 // Estimates the height of the project image block on page 1.
-// SectionTitle ~19pt + marginTop:4 + image:160 + optional caption:16 + marginBottom:8
+// SectionTitle ~19pt + marginTop:4 + image(maxHeight:120):116 + optional caption:16 + marginBottom:6
+// → ~145pt without caption, ~161pt with caption
 function estimateProjectImageHeight(hasCaption: boolean): number {
-  return 19 + 4 + 160 + (hasCaption ? 16 : 0) + 8
+  return 19 + 4 + 116 + (hasCaption ? 16 : 0) + 6
 }
 
 function splitItemsForPages(
