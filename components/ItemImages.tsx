@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { CropModal } from './CropModal'
 import { ImageAnnotator } from './ImageAnnotator'
 import { CameraCapture } from './CameraCapture'
 
@@ -24,7 +25,10 @@ export function ItemImages({ itemDbId, quoteId, userId }: Props) {
   const [images, setImages] = useState<ImageRow[]>([])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Stage 1: raw file from gallery/camera → enters CropModal
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  // Stage 2: cropped file from CropModal → enters ImageAnnotator
+  const [croppedFile, setCroppedFile] = useState<File | null>(null)
   const [showCamera, setShowCamera] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
@@ -54,15 +58,21 @@ export function ItemImages({ itemDbId, quoteId, userId }: Props) {
     setImages(withUrls)
   }
 
-  // Called when a file is selected (gallery or camera) — opens annotator
+  // Called when a file is selected (gallery or camera) — opens CropModal
   const handleFileSelected = (file: File) => {
     setShowCamera(false)
     setPendingFile(file)
   }
 
-  // Called when annotator saves — upload the result
-  const handleAnnotated = async (blob: Blob) => {
+  // CropModal confirmed → create File for ImageAnnotator (fit is not stored for item images)
+  const handleCropDone = (blob: Blob) => {
     setPendingFile(null)
+    setCroppedFile(new File([blob], 'cropped.jpg', { type: 'image/jpeg' }))
+  }
+
+  // ImageAnnotator saved → upload the final annotated image
+  const handleAnnotated = async (blob: Blob) => {
+    setCroppedFile(null)
     setUploading(true)
     setError(null)
 
@@ -113,12 +123,23 @@ export function ItemImages({ itemDbId, quoteId, userId }: Props) {
 
   return (
     <>
-      {/* Annotation modal */}
+      {/* Stage 1: raw file → CropModal (1:1 square) */}
       {pendingFile && (
-        <ImageAnnotator
+        <CropModal
           file={pendingFile}
-          onSave={handleAnnotated}
+          aspectRatio={1}
+          defaultFit="cover"
+          onConfirm={handleCropDone}
           onCancel={() => setPendingFile(null)}
+        />
+      )}
+
+      {/* Stage 2: cropped file → ImageAnnotator */}
+      {croppedFile && (
+        <ImageAnnotator
+          file={croppedFile}
+          onSave={handleAnnotated}
+          onCancel={() => setCroppedFile(null)}
         />
       )}
 

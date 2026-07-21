@@ -102,6 +102,9 @@ export interface QuotePDFProps {
   company: PdfCompany
   logoUrl: string | null
   creator?: PdfCreator | null
+  projectImageUrl?: string | null
+  projectImageCaption?: string | null
+  projectImageFit?: 'cover' | 'contain'
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -449,6 +452,26 @@ const s = StyleSheet.create({
     marginTop: 1,
   },
 
+  // ── Project image block ───────────────────────────────────────────────────────
+  projectImageBlock: {
+    marginBottom: 8,
+  },
+  projectImageInner: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  projectImageImg: {
+    width: '72%',
+    height: 160,
+    borderRadius: 3,
+  },
+  projectImageCaption: {
+    fontSize: 8,
+    color: GRAY_TEXT,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
   // ── Draft watermark ──────────────────────────────────────────────────────────
   watermarkContainer: {
     position: 'absolute',
@@ -764,6 +787,12 @@ function estimateSummaryBlockHeight({
   return h
 }
 
+// Estimates the height of the project image block on page 1.
+// SectionTitle ~19pt + marginTop:4 + image:160 + optional caption:16 + marginBottom:8
+function estimateProjectImageHeight(hasCaption: boolean): number {
+  return 19 + 4 + 160 + (hasCaption ? 16 : 0) + 8
+}
+
 function splitItemsForPages(
   items: PdfItem[],
   firstBudget: number,
@@ -791,7 +820,7 @@ function splitItemsForPages(
 }
 
 // ── PDF Document ───────────────────────────────────────────────────────────────
-export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFProps) {
+export function QuotePDF({ quote, items, company, logoUrl, creator, projectImageUrl, projectImageCaption, projectImageFit }: QuotePDFProps) {
   const requiredItems = items.filter((i) => !i.is_optional)
   const hasOptional = items.some((i) => i.is_optional)
   const subtotal = requiredItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
@@ -825,10 +854,15 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
   // Cont overhead: continuationBand:32 + orangeLine:3 + contLabel:23 + header:21 → ~79pt
   const PAGE_USABLE             = 801
   const PAGE_SAFETY_MARGIN      = 20
-  const FIRST_PAGE_OVERHEAD     = 261
+  // When a project image exists its block is rendered between client card and table,
+  // increasing the first-page overhead by ~191–207pt (SectionTitle + 160pt image + optional caption).
+  const PROJECT_IMAGE_OVERHEAD  = projectImageUrl
+    ? estimateProjectImageHeight(!!projectImageCaption)
+    : 0
+  const FIRST_PAGE_OVERHEAD     = 261 + PROJECT_IMAGE_OVERHEAD
   const CONT_PAGE_OVERHEAD      = 79
-  const PAGE_1_CAPACITY         = PAGE_USABLE - FIRST_PAGE_OVERHEAD          // 540pt
-  const FIRST_PAGE_ITEMS_BUDGET = PAGE_1_CAPACITY - PAGE_SAFETY_MARGIN       // 520pt
+  const PAGE_1_CAPACITY         = PAGE_USABLE - FIRST_PAGE_OVERHEAD
+  const FIRST_PAGE_ITEMS_BUDGET = PAGE_1_CAPACITY - PAGE_SAFETY_MARGIN
   const CONT_PAGE_ITEMS_BUDGET  = PAGE_USABLE - CONT_PAGE_OVERHEAD - PAGE_SAFETY_MARGIN  // 702pt
 
   const allItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
@@ -1168,6 +1202,22 @@ export function QuotePDF({ quote, items, company, logoUrl, creator }: QuotePDFPr
               </View>
             </View>
           </View>
+
+          {projectImageUrl && (
+            <View style={s.projectImageBlock}>
+              <SectionTitle>{'תמונת פרויקט'}</SectionTitle>
+              <View style={s.projectImageInner}>
+                <Image
+                  src={projectImageUrl}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  style={[s.projectImageImg, { objectFit: (projectImageFit ?? 'cover') as any }]}
+                />
+                {projectImageCaption ? (
+                  <Text style={s.projectImageCaption}>{projectImageCaption}</Text>
+                ) : null}
+              </View>
+            </View>
+          )}
 
           <View style={s.tableContainer}>
             {tableHeaderRow}

@@ -7,6 +7,7 @@ import { QuoteItemCard } from './QuoteItemCard'
 import { QuoteSummary } from './QuoteSummary'
 import { PriceAdjustmentsEditor } from './PriceAdjustmentsEditor'
 import { FieldAutocomplete } from './FieldAutocomplete'
+import { ProjectImage } from './ProjectImage'
 import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
@@ -37,6 +38,9 @@ const defaultHeader = (): QuoteHeaderDraft => {
     exclusions: DEFAULT_EXCLUSIONS,
     vat_percentage: 0,
     price_adjustments: [],
+    project_image_path: null,
+    project_image_caption: '',
+    project_image_fit: 'cover',
   }
 }
 
@@ -126,6 +130,9 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       exclusions: header.exclusions,
       vat_percentage: header.vat_percentage,
       price_adjustments: header.price_adjustments,
+      project_image_path: header.project_image_path ?? null,
+      project_image_caption: header.project_image_caption ?? '',
+      project_image_fit: header.project_image_fit ?? 'cover',
       // New quotes get 'draft'; existing quotes keep their current status
       ...(!savedId && { status: 'draft' as const }),
     }
@@ -268,11 +275,26 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     return { quoteId: result.savedId, dbId }
   }
 
+  // ── Silent auto-save (for project image upload when quote not yet saved) ─────
+  const autoSaveQuote = async (): Promise<string | null> => {
+    if (savedId) return savedId
+    setAutoSaving(true)
+    const result = await performSave()
+    setAutoSaving(false)
+    return result?.savedId ?? null
+  }
+
   // ── Delete quote ─────────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!savedId) return
     setDeleting(true)
     const supabase = createClient()
+
+    // Delete project image from storage if exists
+    const projectImagePath = header.project_image_path
+    if (projectImagePath) {
+      await supabase.storage.from('quote-images').remove([projectImagePath])
+    }
 
     // Collect storage paths via item_images
     const { data: itemRows } = await supabase
@@ -386,6 +408,23 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
               rows={2} className={`${inputCls} resize-none`}
               placeholder="תיאור קצר של הפרויקט..." />
           </Field>
+        </section>
+
+        {/* Project image */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <ProjectImage
+            quoteId={savedId}
+            userId={userId}
+            imagePath={header.project_image_path ?? null}
+            imageCaption={header.project_image_caption ?? ''}
+            imageFit={header.project_image_fit ?? 'cover'}
+            onChange={(updates) => {
+              if ('path' in updates) setHeaderField('project_image_path', updates.path ?? null)
+              if ('caption' in updates) setHeaderField('project_image_caption', updates.caption)
+              if ('fit' in updates) setHeaderField('project_image_fit', updates.fit)
+            }}
+            onAutoSave={autoSaveQuote}
+          />
         </section>
 
         {/* Dates */}

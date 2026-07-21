@@ -122,6 +122,18 @@ export default async function QuoteViewPage({ params }: Props) {
     .eq('request_status', 'pending')
     .maybeSingle()
 
+  // Project image signed URL
+  let projectImageUrl: string | null = null
+  const projectImagePath = (quote as any).project_image_path as string | null
+  if (projectImagePath) {
+    const { data: piData } = await supabase.storage
+      .from('quote-images')
+      .createSignedUrl(projectImagePath, 3600)
+    projectImageUrl = piData?.signedUrl ?? null
+  }
+  const projectImageCaption = ((quote as any).project_image_caption ?? '') as string
+  const projectImageFit = (((quote as any).project_image_fit ?? 'cover') as 'cover' | 'contain')
+
   const sortedItems = ((quote.quote_items ?? []) as Array<{
     id: string; item_number: number; description: string; unit: string
     quantity: number; unit_price: number; notes: string; is_optional?: boolean
@@ -195,6 +207,24 @@ export default async function QuoteViewPage({ params }: Props) {
             </div>
           )}
         </section>
+
+        {/* Project image */}
+        {projectImageUrl && (
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="relative" style={{ height: 220 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={projectImageUrl}
+                alt={projectImageCaption || 'תמונת פרויקט'}
+                className="w-full h-full"
+                style={{ objectFit: projectImageFit }}
+              />
+            </div>
+            {projectImageCaption && (
+              <p className="text-xs text-gray-500 text-center px-4 py-2">{projectImageCaption}</p>
+            )}
+          </section>
+        )}
 
         {/* Items */}
         {itemsWithImages.length > 0 && (

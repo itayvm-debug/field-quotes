@@ -112,6 +112,9 @@ export interface QuoteHeaderDraft {
   exclusions: string
   vat_percentage: number
   price_adjustments: PriceAdjustment[]
+  project_image_path?: string | null
+  project_image_caption?: string
+  project_image_fit?: 'cover' | 'contain'
 }
 
 export const PREDEFINED_UNITS = [

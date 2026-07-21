@@ -75,6 +75,9 @@ export default async function EditQuotePage({ params }: Props) {
     exclusions: quote.exclusions,
     vat_percentage: quote.vat_percentage,
     price_adjustments: parsePriceAdjustments((quote as any).price_adjustments),
+    project_image_path: (quote as any).project_image_path ?? null,
+    project_image_caption: (quote as any).project_image_caption ?? '',
+    project_image_fit: ((quote as any).project_image_fit ?? 'cover') as 'cover' | 'contain',
   }
 
   const items: QuoteItemDraft[] = (quote.quote_items ?? [])

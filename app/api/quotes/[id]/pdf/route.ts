@@ -78,6 +78,17 @@ export async function GET(
     }
   }
 
+  // Project image signed URL
+  let projectImageUrl: string | null = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const projectImagePath = (quote as any).project_image_path as string | null
+  if (projectImagePath) {
+    const { data: piData } = await supabase.storage
+      .from('quote-images')
+      .createSignedUrl(projectImagePath, 3600)
+    projectImageUrl = piData?.signedUrl ?? null
+  }
+
   // Build items with signed image URLs
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawItems: any[] = (quote.quote_items ?? []).sort(
@@ -146,6 +157,11 @@ export async function GET(
       },
       logoUrl,
       creator,
+      projectImageUrl,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      projectImageCaption: ((quote as any).project_image_caption ?? '') as string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      projectImageFit: (((quote as any).project_image_fit ?? 'cover') as 'cover' | 'contain'),
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

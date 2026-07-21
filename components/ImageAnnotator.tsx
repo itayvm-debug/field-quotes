@@ -2,7 +2,16 @@
 
 import { useRef, useState, useEffect } from 'react'
 
-type Tool = 'pen' | 'circle' | 'arrow' | 'erase' | 'text'
+type Tool = 'pen' | 'circle' | 'arrow' | 'rect' | 'text' | 'erase'
+type SizeMode = 'small' | 'medium' | 'large'
+
+// Size presets — medium is the default and is intentionally larger than legacy defaults
+// so annotations are clearly visible both on screen and in the final PDF.
+const SIZES: Record<SizeMode, { pen: number; shape: number; arrowHead: number; eraser: number; textCanvas: number; textDom: number }> = {
+  small:  { pen: 3,  shape: 2,  arrowHead: 15, eraser: 18, textCanvas: 26, textDom: 12 },
+  medium: { pen: 6,  shape: 4,  arrowHead: 26, eraser: 30, textCanvas: 40, textDom: 18 },
+  large:  { pen: 12, shape: 8,  arrowHead: 42, eraser: 44, textCanvas: 58, textDom: 28 },
+}
 
 interface TextAnnotation {
   id: string
@@ -28,10 +37,6 @@ const COLORS = [
 ]
 
 const ANGLES = [0, 45, 90, -45]
-const PEN_WIDTH = 4
-const SHAPE_WIDTH = 3
-const ERASE_WIDTH = 24
-const TEXT_CANVAS_SIZE = 32  // font size in canvas pixels
 const MAX_DIM = 2048
 
 export function ImageAnnotator({ file, onSave, onCancel }: Props) {
@@ -43,6 +48,7 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; annX: number; annY: number } | null>(null)
 
   const [tool, setTool] = useState<Tool>('pen')
+  const [sizeMode, setSizeMode] = useState<SizeMode>('medium')
   const [ready, setReady] = useState(false)
   const [color, setColor] = useState('#FF3B30')
   const [textAnnotations, setTextAnnotations] = useState<TextAnnotation[]>([])
@@ -106,7 +112,7 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
     const c = ctx(); if (!c || !canvasRef.current) return
     isDrawingRef.current = true
     startPosRef.current = pos
-    if (tool === 'circle' || tool === 'arrow') {
+    if (tool === 'circle' || tool === 'arrow' || tool === 'rect') {
       snapshotRef.current = c.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height)
     }
     if (tool === 'pen' || tool === 'erase') {
@@ -118,25 +124,31 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
     if (!isDrawingRef.current) return
     const c = ctx(); const canvas = canvasRef.current
     if (!c || !canvas) return
+    const sz = SIZES[sizeMode]
     const { x: x0, y: y0 } = startPosRef.current
     const { x: x1, y: y1 } = pos
 
     if (tool === 'pen') {
-      c.strokeStyle = color; c.lineWidth = PEN_WIDTH
+      c.strokeStyle = color; c.lineWidth = sz.pen
       c.lineCap = 'round'; c.lineJoin = 'round'
       c.lineTo(x1, y1); c.stroke()
       c.beginPath(); c.moveTo(x1, y1)
     } else if (tool === 'erase') {
-      c.strokeStyle = '#FFFFFF'; c.lineWidth = ERASE_WIDTH
+      c.strokeStyle = '#FFFFFF'; c.lineWidth = sz.eraser
       c.lineCap = 'round'; c.lineJoin = 'round'
       c.lineTo(x1, y1); c.stroke()
       c.beginPath(); c.moveTo(x1, y1)
     } else if (tool === 'circle' && snapshotRef.current) {
       c.putImageData(snapshotRef.current, 0, 0)
-      c.strokeStyle = color; c.lineWidth = SHAPE_WIDTH
+      c.strokeStyle = color; c.lineWidth = sz.shape
       c.beginPath()
       c.ellipse((x0 + x1) / 2, (y0 + y1) / 2, Math.abs(x1 - x0) / 2, Math.abs(y1 - y0) / 2, 0, 0, 2 * Math.PI)
       c.stroke()
+    } else if (tool === 'rect' && snapshotRef.current) {
+      c.putImageData(snapshotRef.current, 0, 0)
+      c.strokeStyle = color; c.lineWidth = sz.shape
+      c.beginPath()
+      c.strokeRect(x0, y0, x1 - x0, y1 - y0)
     } else if (tool === 'arrow' && snapshotRef.current) {
       c.putImageData(snapshotRef.current, 0, 0)
       drawArrow(c, x0, y0, x1, y1)
@@ -153,10 +165,11 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
   }
 
   const drawArrow = (c: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) => {
+    const sz = SIZES[sizeMode]
     const angle = Math.atan2(y1 - y0, x1 - x0)
-    const head = 20
+    const head = sz.arrowHead
     const spread = Math.PI / 6
-    c.strokeStyle = color; c.fillStyle = color; c.lineWidth = SHAPE_WIDTH; c.lineCap = 'round'
+    c.strokeStyle = color; c.fillStyle = color; c.lineWidth = sz.shape; c.lineCap = 'round'
     c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke()
     c.beginPath()
     c.moveTo(x1, y1)
@@ -198,14 +211,15 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
   const renderTextToCanvas = () => {
     const c = ctx(); const canvas = canvasRef.current
     if (!c || !canvas) return
+    const sz = SIZES[sizeMode]
     textAnnotations.forEach((ann) => {
       c.save()
       c.translate(ann.x, ann.y)
       c.rotate(ann.angle * Math.PI / 180)
-      c.font = `bold ${TEXT_CANVAS_SIZE}px sans-serif`
+      c.font = `bold ${sz.textCanvas}px sans-serif`
       c.fillStyle = ann.color
-      c.strokeStyle = 'rgba(0,0,0,0.6)'
-      c.lineWidth = 3
+      c.strokeStyle = 'rgba(0,0,0,0.65)'
+      c.lineWidth = Math.max(2, sz.textCanvas * 0.1)
       c.textBaseline = 'top'
       c.strokeText(ann.text, 0, 0)
       c.fillText(ann.text, 0, 0)
@@ -222,8 +236,15 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
     { id: 'pen', label: 'עט' },
     { id: 'circle', label: 'עיגול' },
     { id: 'arrow', label: 'חץ' },
+    { id: 'rect', label: 'מלבן' },
     { id: 'text', label: 'טקסט' },
     { id: 'erase', label: 'מחק' },
+  ]
+
+  const sizes: { id: SizeMode; label: string }[] = [
+    { id: 'small', label: 'קטן' },
+    { id: 'medium', label: 'בינוני' },
+    { id: 'large', label: 'גדול' },
   ]
 
   return (
@@ -256,8 +277,8 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
         </div>
       </div>
 
-      {/* Color picker */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-gray-800">
+      {/* Color + Size row */}
+      <div className="flex items-center gap-4 px-4 py-2 bg-gray-800">
         <span className="text-gray-400 text-xs shrink-0">צבע:</span>
         <div className="flex gap-2">
           {COLORS.map((c) => (
@@ -273,6 +294,22 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
               }`}
               aria-label={c.label}
             />
+          ))}
+        </div>
+        <div className="h-4 w-px bg-gray-600" />
+        <span className="text-gray-400 text-xs shrink-0">גודל:</span>
+        <div className="flex gap-1">
+          {sizes.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSizeMode(s.id)}
+              className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${
+                sizeMode === s.id ? 'bg-orange-500 text-white' : 'bg-gray-700 text-gray-300'
+              }`}
+            >
+              {s.label}
+            </button>
           ))}
         </div>
       </div>
@@ -351,6 +388,7 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
           {/* Placed text annotation overlays */}
           {textAnnotations.map((ann) => {
             const { left, top } = toPercent(ann.x, ann.y)
+            const sz = SIZES[sizeMode]
             return (
               <div
                 key={ann.id}
@@ -362,7 +400,7 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
                   transformOrigin: '0 0',
                   color: ann.color,
                   fontWeight: 'bold',
-                  fontSize: 14,
+                  fontSize: sz.textDom,
                   fontFamily: 'sans-serif',
                   textShadow: '0 0 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9)',
                   whiteSpace: 'nowrap',
@@ -371,7 +409,6 @@ export function ImageAnnotator({ file, onSave, onCancel }: Props) {
                 onMouseDown={(e) => {
                   e.stopPropagation()
                   const canvas = canvasRef.current!
-                  const rect = canvas.getBoundingClientRect()
                   dragStartRef.current = {
                     mouseX: e.clientX,
                     mouseY: e.clientY,
