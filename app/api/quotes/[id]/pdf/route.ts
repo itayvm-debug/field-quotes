@@ -129,6 +129,23 @@ export async function GET(
     })
   )
 
+  // Diagnostic logging — remove once image pipeline is verified stable
+  console.log(`[pdf-debug] quoteId=${id} items=${items.length}`)
+  for (const item of items) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawItem = rawItems.find((r: any) => r.item_number === item.item_number)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbCount: number = (rawItem as any)?.item_images?.length ?? 0
+    const includedCount = item.images.filter(img => img.include_in_pdf).length
+    const signedCount   = item.images.filter(img => img.include_in_pdf && img.signedUrl).length
+    const skippedUrls   = item.images.filter(img => img.include_in_pdf && !img.signedUrl).length
+    console.log(
+      `[pdf-debug]  item ${item.item_number}: db=${dbCount}` +
+      ` include_in_pdf=${includedCount} signed_url=${signedCount}` +
+      (skippedUrls ? ` WARN_url_missing=${skippedUrls}` : '')
+    )
+  }
+
   try {
     const pdfElement = React.createElement(QuotePDF, {
       quote: {

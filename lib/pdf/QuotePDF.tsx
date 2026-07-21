@@ -454,11 +454,11 @@ const s = StyleSheet.create({
 
   // ── Project image block ───────────────────────────────────────────────────────
   projectImageBlock: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
   projectImageInner: {
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
   projectImageImg: {
     width: '58%',
@@ -469,7 +469,7 @@ const s = StyleSheet.create({
     fontSize: 8,
     color: GRAY_TEXT,
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
 
   // ── Draft watermark ──────────────────────────────────────────────────────────
@@ -788,10 +788,10 @@ function estimateSummaryBlockHeight({
 }
 
 // Estimates the height of the project image block on page 1.
-// SectionTitle ~19pt + marginTop:4 + image(maxHeight:120):116 + optional caption:16 + marginBottom:6
-// → ~145pt without caption, ~161pt with caption
+// SectionTitle ~19pt + marginTop:2 + image(maxHeight:120):116 + optional caption(text:12+marginTop:2):14 + marginBottom:4
+// → ~141pt without caption, ~155pt with caption
 function estimateProjectImageHeight(hasCaption: boolean): number {
-  return 19 + 4 + 116 + (hasCaption ? 16 : 0) + 6
+  return 19 + 2 + 116 + (hasCaption ? 14 : 0) + 4
 }
 
 function splitItemsForPages(
@@ -967,32 +967,41 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
     const lineTotal = item.quantity * item.unit_price
     const isAlt = idx % 2 === 1
     const isOptional = item.is_optional ?? false
-    const hasPdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl).length > 0
+    const pdfImages = item.images.filter((img) => img.include_in_pdf && img.signedUrl)
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[pdf-debug] render item ${item.item_number}: images_rendered=${pdfImages.length}`)
+    }
+
     return (
-      <View key={item.item_number} wrap={false} style={s.itemWrapper}>
-        <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}, isOptional ? s.tableRowOptional : {}]}>
-          <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
-          <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
-          <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
-          <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
-          <View style={s.colDesc}>
-            {isOptional && <Text style={s.optionalLabel}>{'אפציה *‏'}</Text>}
-            {renderDescriptionBlock(item.description, s.tdText)}
+      // Outer wrapper can split across pages — allows image grids to flow to next page
+      // without clipping when an item has many images.
+      <View key={item.item_number} style={s.itemWrapper}>
+        {/* Keep description row + notes together; never orphan a price row without its description */}
+        <View wrap={false}>
+          <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}, isOptional ? s.tableRowOptional : {}]}>
+            <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
+            <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
+            <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
+            <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
+            <View style={s.colDesc}>
+              {isOptional && <Text style={s.optionalLabel}>{'אפציה *‏'}</Text>}
+              {renderDescriptionBlock(item.description, s.tdText)}
+            </View>
+            <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
           </View>
-          <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
+          {item.notes ? (
+            <View style={s.notesRow}>
+              {renderNoteLines(item.notes, s.notesText)}
+            </View>
+          ) : null}
         </View>
-        {item.notes ? (
-          <View style={s.notesRow}>
-            {renderNoteLines(item.notes, s.notesText)}
-          </View>
-        ) : null}
-        {hasPdfImages && (
+        {/* Images rendered outside wrap={false} so they can flow across pages */}
+        {pdfImages.length > 0 && (
           <View style={s.imageGrid}>
-            {item.images
-              .filter((img) => img.include_in_pdf && img.signedUrl)
-              .map((img, i) => (
-                <Image key={i} src={img.signedUrl} style={s.itemImage} />
-              ))}
+            {pdfImages.map((img, i) => (
+              <Image key={i} src={img.signedUrl} style={s.itemImage} />
+            ))}
           </View>
         )}
       </View>

@@ -93,7 +93,7 @@ export function ItemImages({ itemDbId, quoteId, userId }: Props) {
     const { error: dbErr } = await supabase.from('item_images').insert({
       item_id: itemDbId,
       storage_path: storagePath,
-      include_in_pdf: images.length < 2,
+      include_in_pdf: true,
       display_order: images.length + 1,
     })
 
