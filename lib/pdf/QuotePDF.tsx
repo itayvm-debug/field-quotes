@@ -315,7 +315,7 @@ const s = StyleSheet.create({
   },
   optionalLabel: {
     fontSize: 6.5,
-    color: '#D97706',
+    color: '#92400E',
     fontWeight: 'bold' as never,
     textAlign: 'right' as never,
     marginBottom: 1,
@@ -326,8 +326,48 @@ const s = StyleSheet.create({
   },
   optionalFootnoteText: {
     fontSize: 7.5,
-    color: '#D97706',
+    color: '#92400E',
     textAlign: 'right' as never,
+  },
+
+  // ── Optional-item summary rows (inside summaryBox, below main orange total) ───
+  optionalInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderTopWidth: 1,
+    borderTopColor: '#FDE68A',
+    backgroundColor: '#FFFBEB',
+  },
+  optionalInfoLabel: {
+    fontSize: 7.5,
+    color: '#92400E',
+    textAlign: 'right' as never,
+  },
+  optionalInfoValue: {
+    fontSize: 7.5,
+    color: '#92400E',
+    textAlign: 'left' as never,
+  },
+  grandTotalOptionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#374151',
+  },
+  grandTotalOptionsLabel: {
+    fontSize: 8.5,
+    fontWeight: 'bold' as never,
+    color: '#F9FAFB',
+    textAlign: 'right' as never,
+  },
+  grandTotalOptionsValue: {
+    fontSize: 8.5,
+    fontWeight: 'bold' as never,
+    color: '#F9FAFB',
+    textAlign: 'left' as never,
   },
 
   // ── Images ───────────────────────────────────────────────────────────────────
@@ -773,8 +813,8 @@ function estimateSummaryBlockHeight({
   let h = 74 + (adjCount > 0 ? (adjCount + 1) * 21 : 0)
   // Payment terms is side-by-side — conservative +8pt for extra height above box
   if (hasPaymentTerms) h += 8
-  // Optional footnote: marginTop:6 + text line:12 = 18pt
-  if (hasOptionItems) h += 18
+  // Optional rows: optionalInfoRow:18 + grandTotalOptionsRow:20 + footnote:18 = 56pt
+  if (hasOptionItems) h += 56
   // Exclusions: overhead 28pt + 11pt per wrapped line
   if (exclusionsText) {
     const lines = Math.max(1, Math.ceil(exclusionsText.length / 55))
@@ -829,6 +869,12 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
   const adjustedSubtotal = adjResult.adjustedTotal
   const vatAmount = (adjustedSubtotal * quote.vat_percentage) / 100
   const total = adjustedSubtotal + vatAmount
+
+  // Optional-item totals — display-only, never included in the primary financial figures
+  const optionalItems = items.filter((i) => i.is_optional)
+  const optionalSubtotal = optionalItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+  const optionalVat = (optionalSubtotal * quote.vat_percentage) / 100
+  const grandTotalIncludingOptions = total + optionalSubtotal + optionalVat
 
   // Local logo fallback
   const localLogo = path.join(process.cwd(), 'public', 'company-logo.png')
@@ -985,7 +1031,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
             <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
             <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
             <View style={s.colDesc}>
-              {isOptional && <Text style={s.optionalLabel}>{'אפציה *‏'}</Text>}
+              {isOptional && <Text style={s.optionalLabel}>{'אופציה — לא כלול בסה״כ'}</Text>}
               {renderDescriptionBlock(item.description, s.tdText)}
             </View>
             <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.tdText}>{item.item_number}</Text></View>
@@ -1043,11 +1089,23 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
           <View style={s.summaryTotalRow}>
             <Text style={s.summaryTotalValue}>{fmtCurrency(total)}</Text>
             <Text style={s.summaryTotalLabel}>
-              {quote.vat_percentage > 0
-                ? 'סה״כ כולל מע״מ'
-                : 'סה״כ'}
+              {hasOptional
+                ? (quote.vat_percentage > 0 ? 'סה״כ לביצוע, כולל מע״מ' : 'סה״כ לביצוע')
+                : (quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ')}
             </Text>
           </View>
+          {hasOptional && optionalSubtotal > 0 && (
+            <>
+              <View style={s.optionalInfoRow}>
+                <Text style={s.optionalInfoValue}>{fmtCurrency(optionalSubtotal)}</Text>
+                <Text style={s.optionalInfoLabel}>{'סעיפי אופציה — לא כלול בסה״כ'}</Text>
+              </View>
+              <View style={s.grandTotalOptionsRow}>
+                <Text style={s.grandTotalOptionsValue}>{fmtCurrency(grandTotalIncludingOptions)}</Text>
+                <Text style={s.grandTotalOptionsLabel}>{'סה״כ כולל אופציות, ככל שיאושרו'}</Text>
+              </View>
+            </>
+          )}
         </View>
         {quote.payment_terms ? (
           <View style={{ flex: 1, paddingTop: 2 }}>
@@ -1059,7 +1117,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
       {hasOptional && (
         <View style={s.optionalFootnote}>
           <Text style={s.optionalFootnoteText}>
-            {'* סעיפי אופציה אינם כלולים בסה״כ ההצעה ויבוצעו רק באישור המזמין‏'}
+            {'סעיפי אופציה אינם כלולים בסה״כ לביצוע ויבוצעו רק לאחר אישור מפורש של המזמין.'}
           </Text>
         </View>
       )}

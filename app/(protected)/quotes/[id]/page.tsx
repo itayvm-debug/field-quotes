@@ -5,7 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calcSubtotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
+import { calcSubtotal, calcVat, calcTotal, calcItemTotal, formatCurrency, formatDate } from '@/lib/calculations'
 import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
 import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
@@ -166,6 +166,12 @@ export default async function QuoteViewPage({ params }: Props) {
   const vat = calcVat(adjustedSubtotal, quote.vat_percentage)
   const total = calcTotal(adjustedSubtotal, vat)
   const totalFormatted = formatCurrency(total)
+  const hasOptional = draftItems.some((i) => i.is_optional)
+  const optionalSubtotal = draftItems
+    .filter((i) => i.is_optional)
+    .reduce((sum, i) => sum + calcItemTotal(i.quantity, i.unit_price), 0)
+  const optionalVat = calcVat(optionalSubtotal, quote.vat_percentage)
+  const grandTotalWithOptions = total + optionalSubtotal + optionalVat
   const quoteStatus = quote.status as QuoteStatus
 
   return (
@@ -303,13 +309,27 @@ export default async function QuoteViewPage({ params }: Props) {
               <span>{formatCurrency(vat)}</span>
             </div>
             <div className="flex justify-between font-bold text-gray-900 text-base border-t border-gray-100 pt-2">
-              <span>{quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ'}</span>
+              <span>
+                {hasOptional
+                  ? (quote.vat_percentage > 0 ? 'סה״כ לביצוע, כולל מע״מ' : 'סה״כ לביצוע')
+                  : (quote.vat_percentage > 0 ? 'סה״כ כולל מע״מ' : 'סה״כ')}
+              </span>
               <span>{totalFormatted}</span>
             </div>
-            {draftItems.some((i) => i.is_optional) && (
-              <p className="text-xs text-amber-600 pt-2 border-t border-gray-100 mt-1">
-                * סעיפי אופציה אינם כלולים בסה״כ
-              </p>
+            {hasOptional && optionalSubtotal > 0 && (
+              <>
+                <div className="flex justify-between text-sm border-t border-amber-100 pt-2 mt-1">
+                  <span className="text-amber-700 font-medium">{formatCurrency(optionalSubtotal)}</span>
+                  <span className="text-amber-700">סעיפי אופציה — לא כלול בסה״כ</span>
+                </div>
+                <div className="flex justify-between font-semibold text-sm bg-gray-800 text-white rounded-xl px-3 py-2 mt-1">
+                  <span>{formatCurrency(grandTotalWithOptions)}</span>
+                  <span>סה״כ כולל אופציות, ככל שיאושרו</span>
+                </div>
+                <p className="text-xs text-gray-500 pt-2">
+                  סעיפי אופציה אינם כלולים בסה״כ לביצוע ויבוצעו רק לאחר אישור מפורש של המזמין.
+                </p>
+              </>
             )}
             {quoteStatus === 'accepted' && paidAmount > 0 && (
               <div className="pt-2 border-t border-gray-100 space-y-1.5 mt-2">
