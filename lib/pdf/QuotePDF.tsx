@@ -360,13 +360,13 @@ const s = StyleSheet.create({
     borderTopColor: '#D1D5DB',
   },
   grandTotalOptionsLabel: {
-    fontSize: 8.5,
+    fontSize: 7.5,
     fontWeight: 'bold' as never,
     color: '#374151',
     textAlign: 'right' as never,
   },
   grandTotalOptionsValue: {
-    fontSize: 8.5,
+    fontSize: 7.5,
     fontWeight: 'bold' as never,
     color: '#374151',
     textAlign: 'left' as never,
