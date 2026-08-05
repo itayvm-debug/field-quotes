@@ -355,18 +355,20 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: '#374151',
+    backgroundColor: '#F3F4F6',
+    borderTopWidth: 1,
+    borderTopColor: '#D1D5DB',
   },
   grandTotalOptionsLabel: {
     fontSize: 8.5,
     fontWeight: 'bold' as never,
-    color: '#F9FAFB',
+    color: '#374151',
     textAlign: 'right' as never,
   },
   grandTotalOptionsValue: {
     fontSize: 8.5,
     fontWeight: 'bold' as never,
-    color: '#F9FAFB',
+    color: '#374151',
     textAlign: 'left' as never,
   },
 
@@ -1117,7 +1119,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
       {hasOptional && (
         <View style={s.optionalFootnote}>
           <Text style={s.optionalFootnoteText}>
-            {'סעיפי אופציה אינם כלולים בסה״כ לביצוע ויבוצעו רק לאחר אישור מפורש של המזמין.'}
+            {fixRtlText('סעיפי אופציה אינם כלולים בסה״כ לביצוע ויבוצעו רק לאחר אישור מפורש של המזמין.')}
           </Text>
         </View>
       )}
