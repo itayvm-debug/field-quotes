@@ -916,92 +916,125 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
   const allItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
 
-  // Fast path: if every item + the summary block fits on one physical page, skip
-  // multi-page splitting entirely.  This prevents short quotes from being split
-  // by an overly-conservative summaryReserve check.
-  let itemPages: PdfItem[][]
-  if (allItemsH + summaryReserve <= PAGE_1_CAPACITY) {
-    itemPages = items.length > 0 ? [items.slice()] : [[]]
-  } else {
-    itemPages = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+  // ── Layout optimizer ────────────────────────────────────────────────────────
+  // Evaluates three candidate layouts and picks the one with the lowest score.
+  //
+  //   A — single page: all items + summary on page 1. Always best when it fits.
+  //   B — detached summary: all items on page 1, summary-only on a continuation
+  //        page. Preferred over C when a lone item would otherwise be stranded
+  //        alone on a continuation page, leaving page 1 with large empty space.
+  //   C — greedy split: items distributed across pages by height, summary on the
+  //        last items page. Always valid; handles long quotes with 3+ pages.
+  //
+  // Score weights (lower = better):
+  //   +1000  per extra page beyond 1
+  //   +200   when the last items page has exactly 1 item (lone-item penalty)
+  //   +50    when the summary is alone on a continuation page (B only)
+  //   +0.1   per unused pt-height on page 1 (tie-breaker)
+  //   Infinity for invalid candidates (items or summary cannot fit)
 
-    // Ensure the last page has room for the summary block.
-    // Use PAGE_1_CAPACITY for the single-page case so we don't double-count
-    // the safety margin that is already inside summaryReserve.
-    {
-      const lastIdx = itemPages.length - 1
-      const lastCap = lastIdx === 0 ? PAGE_1_CAPACITY : CONT_PAGE_ITEMS_BUDGET
-      const lastH   = itemPages[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
-      if (lastH + summaryReserve > lastCap && itemPages[lastIdx].length > 1) {
-        const moved = itemPages[lastIdx].pop()!
-        itemPages.push([moved])
-
-        // After the spill, check if merging everything back to one page would work.
-        // Handles the case where the spill was triggered by a tiny margin that the
-        // summaryReserve safety buffer already covers.
-        if (itemPages.length === 2) {
-          const mergedH = [...itemPages[0], ...itemPages[1]]
-            .reduce((acc, it) => acc + estimateItemHeight(it), 0)
-          if (mergedH + summaryReserve <= PAGE_1_CAPACITY) {
-            itemPages = [items.slice()]
-          }
-        }
-      }
+  // Candidate A ─────────────────────────────────────────────────────────────────
+  const cA = (() => {
+    const valid = allItemsH + summaryReserve <= PAGE_1_CAPACITY
+    const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH - summaryReserve)
+    return {
+      name: 'A-single-page',
+      valid,
+      rejectionReason: valid
+        ? ''
+        : `items(${Math.round(allItemsH)}) + summary(${Math.round(summaryReserve)}) = ${Math.round(allItemsH + summaryReserve)} > capacity(${PAGE_1_CAPACITY})`,
+      pages: (valid ? [items.slice()] : [[]]) as PdfItem[][],
+      summaryDetached: false,
+      score: valid ? unusedH * 0.1 : Infinity,
     }
+  })()
 
-    // Post-processing: if page 1 is under-utilised (<60%) and page 2 has multiple
-    // items, pull items from page 2 to page 1 within the conservative items budget.
-    if (itemPages.length > 1 && itemPages[1].length > 1) {
-      let page1H = itemPages[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
-      while (itemPages[1].length > 1 && page1H / FIRST_PAGE_ITEMS_BUDGET < 0.60) {
-        const candidate  = itemPages[1][0]
-        const candidateH = estimateItemHeight(candidate)
-        if (page1H + candidateH > FIRST_PAGE_ITEMS_BUDGET) break
-        itemPages[0].push(itemPages[1].shift()!)
-        page1H += candidateH
-      }
+  // Candidate B ─────────────────────────────────────────────────────────────────
+  // Valid when A doesn't fit but all items alone fit within PAGE_1_CAPACITY.
+  // Items may use the full page capacity since the summary is on a separate page.
+  const cB = (() => {
+    const aFit = allItemsH + summaryReserve <= PAGE_1_CAPACITY
+    const itemsFitPage1 = allItemsH <= PAGE_1_CAPACITY
+    const valid = !aFit && itemsFitPage1
+    const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH)
+    return {
+      name: 'B-summary-detached',
+      valid,
+      rejectionReason: aFit
+        ? 'A is better'
+        : !itemsFitPage1
+          ? `allItemsH(${Math.round(allItemsH)}) > PAGE_1_CAPACITY(${PAGE_1_CAPACITY})`
+          : '',
+      pages: (valid ? [items.slice()] : [[]]) as PdfItem[][],
+      summaryDetached: true,
+      score: valid ? 1000 + 50 + unusedH * 0.1 : Infinity,
     }
+  })()
 
-    // Safety net: if a single item ended up alone on page 2 and everything fits
-    // on one page with the summary, merge back (mirrors the fast-path condition).
-    if (itemPages.length === 2 && itemPages[1].length === 1) {
-      const totalH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
-      if (totalH + summaryReserve <= PAGE_1_CAPACITY) {
-        itemPages = [items.slice()]
-      }
+  // Candidate C ─────────────────────────────────────────────────────────────────
+  // Greedy height-based split; always valid after optional summary-spill adjustment.
+  const cC = (() => {
+    const split = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+    // Spill last item to a new page when summary won't fit on the last items page.
+    const lastIdx = split.length - 1
+    const lastPageCap = lastIdx === 0 ? PAGE_1_CAPACITY : CONT_PAGE_ITEMS_BUDGET
+    const lastPageH = split[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
+    if (lastPageH + summaryReserve > lastPageCap && split[lastIdx].length > 1) {
+      split.push([split[lastIdx].pop()!])
     }
-  }
+    const lastItemCount = split[split.length - 1].length
+    const page1H = split[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
+    const unusedPage1H = Math.max(0, PAGE_1_CAPACITY - page1H)
+    const extraPages = split.length - 1
+    const lonePenalty = lastItemCount === 1 && extraPages >= 1 ? 200 : 0
+    return {
+      name: `C-split-${split.map((p) => p.length).join('-')}`,
+      valid: true,
+      rejectionReason: '',
+      pages: split,
+      summaryDetached: false,
+      score: extraPages * 1000 + lonePenalty + unusedPage1H * 0.1,
+    }
+  })()
 
-  // Dev-mode: pagination diagnostics for quick debugging.
+  const layoutCandidates = [cA, cB, cC]
+  const selectedLayout = layoutCandidates.reduce((best, c) => (c.score < best.score ? c : best))
+
+  // Dev-mode: layout candidate diagnostics (removed in production builds)
   if (process.env.NODE_ENV !== 'production') {
-    const page1H = itemPages[0].reduce((acc, it) => acc + estimateItemHeight(it), 0)
-    console.log('[pdf-pagination-debug]', {
+    console.log('[pdf-layout-candidates]', {
       quoteNumber: quote.quote_number,
-      itemPages: itemPages.map((page) =>
-        page.map((item) => ({
-          item_number: item.item_number,
-          estimatedHeight: estimateItemHeight(item),
-          descriptionLength: item.description?.length ?? 0,
-          notesLength: item.notes?.length ?? 0,
-          imageCount: item.images?.filter((img) => img.include_in_pdf && img.signedUrl).length ?? 0,
-        }))
-      ),
-      allItemsH,
-      summaryReserve,
+      candidates: layoutCandidates.map((c) => ({
+        name: c.name,
+        valid: c.valid,
+        score: isFinite(c.score) ? Math.round(c.score * 10) / 10 : 'Infinity',
+        pageCount: c.valid ? c.pages.length + (c.summaryDetached ? 1 : 0) : 0,
+        pages: c.valid
+          ? c.pages.map((p, i) => {
+              const usedH = p.reduce((acc, it) => acc + estimateItemHeight(it), 0)
+              const availH = i === 0 ? PAGE_1_CAPACITY : CONT_PAGE_ITEMS_BUDGET
+              return {
+                type: i === 0 ? 'page1' : `page${i + 1}`,
+                itemNumbers: p.map((it) => it.item_number),
+                usedHeight: Math.round(usedH),
+                availableHeight: availH,
+                unusedHeight: Math.round(availH - usedH),
+                hasSummary: !c.summaryDetached && i === c.pages.length - 1,
+              }
+            })
+          : [],
+        rejectionReason: c.rejectionReason,
+      })),
+      selected: selectedLayout.name,
+      allItemsH: Math.round(allItemsH),
+      summaryReserve: Math.round(summaryReserve),
       PAGE_1_CAPACITY,
       FIRST_PAGE_ITEMS_BUDGET,
-      CONT_PAGE_ITEMS_BUDGET,
-      fastPath: allItemsH + summaryReserve <= PAGE_1_CAPACITY,
-      estimatedFirstPageUsedHeight: page1H,
-    })
-    itemPages.forEach((page, pi) => {
-      const budget = pi === 0 ? FIRST_PAGE_ITEMS_BUDGET : CONT_PAGE_ITEMS_BUDGET
-      const h = page.reduce((acc, it) => acc + estimateItemHeight(it), 0)
-      if (h > budget) {
-        console.warn(`[pdf-pagination-debug] page ${pi + 1} height ${h}pt > budget ${budget}pt (+${h - budget}pt)`)
-      }
     })
   }
+
+  const itemPages = selectedLayout.pages
+  const summaryDetached = selectedLayout.summaryDetached
 
   const itemPageOffsets = itemPages.map((_, i) =>
     itemPages.slice(0, i).reduce((acc, p) => acc + p.length, 0)
@@ -1303,7 +1336,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
             {itemPages[0].map((item, idx) => renderItemRow(item, itemPageOffsets[0] + idx))}
           </View>
 
-          {itemPages.length === 1 && renderSummaryBlock()}
+          {itemPages.length === 1 && !summaryDetached && renderSummaryBlock()}
         </View>
 
         {renderWatermark()}
@@ -1328,7 +1361,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
                 {tableHeaderRow}
                 {pageItems.map((item, idx) => renderItemRow(item, itemPageOffsets[pi + 1] + idx))}
               </View>
-              {isLastPage && renderSummaryBlock()}
+              {isLastPage && !summaryDetached && renderSummaryBlock()}
             </View>
 
             {renderWatermark()}
@@ -1336,6 +1369,18 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
           </Page>
         )
       })}
+
+      {/* Candidate B: summary-only continuation page when summaryDetached is true */}
+      {summaryDetached && (
+        <Page size="A4" style={s.page}>
+          {renderContinuationHeader()}
+          <View style={{ paddingHorizontal: 28 }}>
+            {renderSummaryBlock()}
+          </View>
+          {renderWatermark()}
+          {renderFooter()}
+        </Page>
+      )}
 
     </Document>
   )
