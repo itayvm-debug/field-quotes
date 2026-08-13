@@ -916,24 +916,37 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
   const allItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
 
+  // Compact-mode reduces estimated summary height by tightening spacing around the
+  // flex row, exclusions block, and signature section (~20pt total saved).
+  const COMPACT_SUMMARY_SAVINGS = 20
+  const compactSummaryReserve = Math.max(0, summaryReserve - COMPACT_SUMMARY_SAVINGS)
+
+  // B (summary-detached) is only valid when page 1 is nearly full. If more unused
+  // height than this remains, C (lastItemWithSummary) is preferred — it looks better.
+  const SUMMARY_ONLY_UNUSED_MAX = 80
+
   // ── Layout optimizer ────────────────────────────────────────────────────────
-  // Evaluates three candidate layouts and picks the one with the lowest score.
+  // Evaluates four candidate layouts and picks the best by score (lower = better).
   //
-  //   A — single page: all items + summary on page 1. Always best when it fits.
-  //   B — detached summary: all items on page 1, summary-only on a continuation
-  //        page. Preferred over C when a lone item would otherwise be stranded
-  //        alone on a continuation page, leaving page 1 with large empty space.
-  //   C — greedy split: items distributed across pages by height, summary on the
-  //        last items page. Always valid; handles long quotes with 3+ pages.
+  //   A  — single page, normal spacing: all items + summary on page 1.
+  //   AC — single page, compact spacing: same content; tighter summary gaps (~20pt).
+  //        Only offered when A doesn't fit. Prefers one page over two.
+  //   C  — greedy split: items distributed across pages, summary on last items page.
+  //        Always valid; the default for 2+-page quotes.
+  //   B  — summary-detached: all items on page 1, summary-only continuation page.
+  //        Only valid when A/AC don't fit, all items fit page 1, AND page 1 is
+  //        nearly full (unusedH ≤ SUMMARY_ONLY_UNUSED_MAX). Prevents a sparse page 1.
   //
   // Score weights (lower = better):
-  //   +1000  per extra page beyond 1
-  //   +200   when the last items page has exactly 1 item (lone-item penalty)
-  //   +50    when the summary is alone on a continuation page (B only)
-  //   +0.1   per unused pt-height on page 1 (tie-breaker)
-  //   Infinity for invalid candidates (items or summary cannot fit)
+  //   0       A  — single page, normal
+  //   5       AC — single page, compact
+  //   +1000   per extra page beyond 1
+  //   +200    when last items page has exactly 1 item (lone-item penalty)
+  //   +50     when summary is alone on a continuation page (B)
+  //   +0.1    per unused pt on page 1 (tie-breaker)
+  //   Infinity for invalid candidates
 
-  // Candidate A ─────────────────────────────────────────────────────────────────
+  // Candidate A: all items + summary, normal spacing ───────────────────────────
   const cA = (() => {
     const valid = allItemsH + summaryReserve <= PAGE_1_CAPACITY
     const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH - summaryReserve)
@@ -945,37 +958,34 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
         : `items(${Math.round(allItemsH)}) + summary(${Math.round(summaryReserve)}) = ${Math.round(allItemsH + summaryReserve)} > capacity(${PAGE_1_CAPACITY})`,
       pages: (valid ? [items.slice()] : [[]]) as PdfItem[][],
       summaryDetached: false,
+      compact: false,
       score: valid ? unusedH * 0.1 : Infinity,
     }
   })()
 
-  // Candidate B ─────────────────────────────────────────────────────────────────
-  // Valid when A doesn't fit but all items alone fit within PAGE_1_CAPACITY.
-  // Items may use the full page capacity since the summary is on a separate page.
-  const cB = (() => {
+  // Candidate AC: all items + summary, compact spacing ─────────────────────────
+  const cAC = (() => {
     const aFit = allItemsH + summaryReserve <= PAGE_1_CAPACITY
-    const itemsFitPage1 = allItemsH <= PAGE_1_CAPACITY
-    const valid = !aFit && itemsFitPage1
-    const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH)
+    const valid = !aFit && allItemsH + compactSummaryReserve <= PAGE_1_CAPACITY
+    const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH - compactSummaryReserve)
     return {
-      name: 'B-summary-detached',
+      name: 'AC-single-page-compact',
       valid,
       rejectionReason: aFit
         ? 'A is better'
-        : !itemsFitPage1
-          ? `allItemsH(${Math.round(allItemsH)}) > PAGE_1_CAPACITY(${PAGE_1_CAPACITY})`
-          : '',
+        : valid
+          ? ''
+          : `items(${Math.round(allItemsH)}) + compactSummary(${Math.round(compactSummaryReserve)}) > capacity(${PAGE_1_CAPACITY})`,
       pages: (valid ? [items.slice()] : [[]]) as PdfItem[][],
-      summaryDetached: true,
-      score: valid ? 1000 + 50 + unusedH * 0.1 : Infinity,
+      summaryDetached: false,
+      compact: true,
+      score: valid ? 5 + unusedH * 0.1 : Infinity,
     }
   })()
 
-  // Candidate C ─────────────────────────────────────────────────────────────────
-  // Greedy height-based split; always valid after optional summary-spill adjustment.
+  // Candidate C: greedy split, summary on last items page (always valid) ────────
   const cC = (() => {
     const split = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
-    // Spill last item to a new page when summary won't fit on the last items page.
     const lastIdx = split.length - 1
     const lastPageCap = lastIdx === 0 ? PAGE_1_CAPACITY : CONT_PAGE_ITEMS_BUDGET
     const lastPageH = split[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
@@ -993,14 +1003,44 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
       rejectionReason: '',
       pages: split,
       summaryDetached: false,
+      compact: false,
       score: extraPages * 1000 + lonePenalty + unusedPage1H * 0.1,
     }
   })()
 
-  const layoutCandidates = [cA, cB, cC]
+  // Candidate B: all items page 1, summary-only continuation page ───────────────
+  // Valid only when A/AC don't fit, all items alone fit on page 1, and page 1 is
+  // nearly full. When page 1 would have too much empty space, C looks better.
+  const cB = (() => {
+    const aFit  = allItemsH + summaryReserve <= PAGE_1_CAPACITY
+    const acFit = !aFit && allItemsH + compactSummaryReserve <= PAGE_1_CAPACITY
+    const itemsFitPage1 = allItemsH <= PAGE_1_CAPACITY
+    const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH)
+    const page1NearlyFull = unusedH <= SUMMARY_ONLY_UNUSED_MAX
+    const valid = !aFit && !acFit && itemsFitPage1 && page1NearlyFull
+    return {
+      name: 'B-summary-detached',
+      valid,
+      rejectionReason: aFit
+        ? 'A is better'
+        : acFit
+          ? 'AC is better'
+          : !itemsFitPage1
+            ? `allItemsH(${Math.round(allItemsH)}) > PAGE_1_CAPACITY(${PAGE_1_CAPACITY})`
+            : !page1NearlyFull
+              ? `page1 unused(${Math.round(unusedH)}pt) > max(${SUMMARY_ONLY_UNUSED_MAX}pt); prefer C`
+              : '',
+      pages: (valid ? [items.slice()] : [[]]) as PdfItem[][],
+      summaryDetached: true,
+      compact: false,
+      score: valid ? 1000 + 50 + unusedH * 0.1 : Infinity,
+    }
+  })()
+
+  const layoutCandidates = [cA, cAC, cC, cB]
   const selectedLayout = layoutCandidates.reduce((best, c) => (c.score < best.score ? c : best))
 
-  // Dev-mode: layout candidate diagnostics (removed in production builds)
+  // Dev-mode: layout candidate diagnostics (stripped in production)
   if (process.env.NODE_ENV !== 'production') {
     console.log('[pdf-layout-candidates]', {
       quoteNumber: quote.quote_number,
@@ -1020,6 +1060,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
                 availableHeight: availH,
                 unusedHeight: Math.round(availH - usedH),
                 hasSummary: !c.summaryDetached && i === c.pages.length - 1,
+                isSummaryOnly: c.summaryDetached,
               }
             })
           : [],
@@ -1028,6 +1069,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
       selected: selectedLayout.name,
       allItemsH: Math.round(allItemsH),
       summaryReserve: Math.round(summaryReserve),
+      compactSummaryReserve: Math.round(compactSummaryReserve),
       PAGE_1_CAPACITY,
       FIRST_PAGE_ITEMS_BUDGET,
     })
@@ -1035,6 +1077,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
   const itemPages = selectedLayout.pages
   const summaryDetached = selectedLayout.summaryDetached
+  const summaryCompact = selectedLayout.compact
 
   const itemPageOffsets = itemPages.map((_, i) =>
     itemPages.slice(0, i).reduce((acc, p) => acc + p.length, 0)
@@ -1099,10 +1142,11 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
   }
 
   // Summary + payment terms side-by-side + exclusions + signature.
-  // Rendered only on the last page.
-  const renderSummaryBlock = () => (
+  // Rendered only on the last page. compact=true tightens vertical gaps by ~20pt
+  // to help borderline quotes fit on a single page.
+  const renderSummaryBlock = (compact = false) => (
     <View wrap={false}>
-      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 6, alignItems: 'flex-start' }}>
+      <View style={{ flexDirection: 'row', gap: 12, marginBottom: compact ? 2 : 6, alignItems: 'flex-start' }}>
         <View style={s.summaryBox}>
           <View style={s.summaryRow}>
             <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
@@ -1166,13 +1210,13 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
         </View>
       )}
       {quote.exclusions ? (
-        <View style={{ borderTopWidth: 1, borderTopColor: GRAY_MID, paddingTop: 5, marginTop: 4, marginBottom: 6 }}>
+        <View style={{ borderTopWidth: 1, borderTopColor: GRAY_MID, paddingTop: compact ? 2 : 5, marginTop: compact ? 1 : 4, marginBottom: compact ? 2 : 6 }}>
           <Text style={s.termLabel}>{'החרגות / הערות'}</Text>
           <Text style={s.termValue}>{fixRtlText(quote.exclusions)}</Text>
         </View>
       ) : null}
       {creator && quote.status !== 'draft' ? (
-        <View style={s.signatureSection}>
+        <View style={[s.signatureSection, compact ? { paddingTop: 4, marginBottom: 3 } : {}]}>
           <Text style={s.signatureGreeting}>{'בברכה,‏'}</Text>
           <Text style={s.signatureName}>
             {creator.full_name}
@@ -1336,7 +1380,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
             {itemPages[0].map((item, idx) => renderItemRow(item, itemPageOffsets[0] + idx))}
           </View>
 
-          {itemPages.length === 1 && !summaryDetached && renderSummaryBlock()}
+          {itemPages.length === 1 && !summaryDetached && renderSummaryBlock(summaryCompact)}
         </View>
 
         {renderWatermark()}
@@ -1361,7 +1405,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
                 {tableHeaderRow}
                 {pageItems.map((item, idx) => renderItemRow(item, itemPageOffsets[pi + 1] + idx))}
               </View>
-              {isLastPage && !summaryDetached && renderSummaryBlock()}
+              {isLastPage && !summaryDetached && renderSummaryBlock(summaryCompact)}
             </View>
 
             {renderWatermark()}
