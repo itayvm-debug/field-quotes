@@ -398,7 +398,7 @@ export function QuoteCardActions({
 
             {(paymentStatus === 'partial' || paymentStatus === 'closed_partial' || paymentStatus === 'paid') && (
               <input
-                type="number" min="0" step="0.01" value={paidAmountStr}
+                type="text" inputMode="decimal" value={paidAmountStr}
                 onChange={(e) => {
                   e.stopPropagation()
                   setPaidAmountStr(e.target.value)

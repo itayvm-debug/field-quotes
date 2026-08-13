@@ -819,13 +819,13 @@ function estimateSummaryBlockHeight({
   if (hasOptionItems) h += 56
   // Exclusions: overhead 28pt + 11pt per wrapped line
   if (exclusionsText) {
-    const lines = Math.max(1, Math.ceil(exclusionsText.length / 55))
+    const lines = Math.max(1, Math.ceil(exclusionsText.length / 75))
     h += 28 + lines * 11
   }
   // Signature: borderTop+paddingTop+greeting+name+company+image = ~80pt
   if (hasSignature) h += 80
   // Small buffer — PAGE_SAFETY_MARGIN is already applied to item budgets separately
-  h += 15
+  h += 10
   return h
 }
 
@@ -959,6 +959,15 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
         if (page1H + candidateH > FIRST_PAGE_ITEMS_BUDGET) break
         itemPages[0].push(itemPages[1].shift()!)
         page1H += candidateH
+      }
+    }
+
+    // Safety net: if a single item ended up alone on page 2 and everything fits
+    // on one page with the summary, merge back (mirrors the fast-path condition).
+    if (itemPages.length === 2 && itemPages[1].length === 1) {
+      const totalH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
+      if (totalH + summaryReserve <= PAGE_1_CAPACITY) {
+        itemPages = [items.slice()]
       }
     }
   }

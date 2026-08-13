@@ -442,9 +442,8 @@ export function QuoteActionsPanel({
                 <div className="mb-3">
                   <label className="block text-xs text-gray-500 mb-1">סכום ששולם (₪)</label>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={paidAmountStr}
                     onChange={(e) => {
                       setPaidAmountStr(e.target.value)

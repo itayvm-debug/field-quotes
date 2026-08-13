@@ -108,11 +108,10 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
         <div>
           <label className="block text-xs text-gray-500 mb-1">כמות</label>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={item.quantity}
             onChange={(e) => onChange({ quantity: e.target.value })}
-            min="0"
-            step="0.001"
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder="0"
           />
@@ -120,11 +119,10 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
         <div>
           <label className="block text-xs text-gray-500 mb-1">מחיר יחידה (₪)</label>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={item.unit_price}
             onChange={(e) => onChange({ unit_price: e.target.value })}
-            min="0"
-            step="0.01"
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder="0.00"
           />

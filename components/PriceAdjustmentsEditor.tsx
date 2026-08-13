@@ -120,14 +120,13 @@ function AdjustmentRow({ adjustment, isFirst, isLast, onChange, onRemove, onMove
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-500 shrink-0">אחוז</span>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={adjustment.percentage === 0 ? '' : adjustment.percentage}
           onChange={(e) => {
             const val = parseFloat(e.target.value)
             onChange({ percentage: isNaN(val) || val < 0 ? 0 : val })
           }}
-          min="0"
-          step="0.01"
           placeholder="0"
           className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-left"
           style={{ direction: 'ltr' }}
