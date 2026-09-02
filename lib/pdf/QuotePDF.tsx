@@ -1330,9 +1330,23 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
               {'תאריך ההצעה: '}{fmtDate(quote.quote_date)}
             </Text>
             {quote.quote_pricing_type ? (
-              <Text style={[s.quoteDateText, { marginTop: 1, color: GRAY_TEXT }]}>
-                {PRICING_TYPE_LABELS[quote.quote_pricing_type] ?? quote.quote_pricing_type}
-              </Text>
+              <View style={{
+                marginTop: 4,
+                backgroundColor: '#FFF4E6',
+                borderWidth: 1,
+                borderColor: '#F5C38A',
+                borderRadius: 4,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+              }}>
+                <Text style={{
+                  fontSize: 9,
+                  fontWeight: 'bold' as never,
+                  color: '#B45309',
+                }}>
+                  {PRICING_TYPE_LABELS[quote.quote_pricing_type] ?? quote.quote_pricing_type}
+                </Text>
+              </View>
             ) : null}
           </View>
         </View>
