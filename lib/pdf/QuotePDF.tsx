@@ -48,6 +48,13 @@ const fmtDate = (s: string | null | undefined) => {
 const fixRtlText = (text: string) =>
   text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
 
+const PRICING_TYPE_LABELS: Record<string, string> = {
+  lump_sum: 'הצעה פאושלית',
+  measured: 'הצעה למדידה',
+  budgetary: 'הצעת אומדן / תקציבית',
+  daywork: 'עבודה יומית / רג׳י',
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface PdfItemImage {
   storage_path: string
@@ -79,6 +86,7 @@ export interface PdfQuote {
   exclusions: string
   vat_percentage: number
   price_adjustments?: PriceAdjustment[]
+  quote_pricing_type?: string | null
 }
 
 export interface PdfCompany {
@@ -1321,6 +1329,11 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
             <Text style={[s.quoteDateText, { marginTop: 2 }]}>
               {'תאריך ההצעה: '}{fmtDate(quote.quote_date)}
             </Text>
+            {quote.quote_pricing_type ? (
+              <Text style={[s.quoteDateText, { marginTop: 1, color: GRAY_TEXT }]}>
+                {PRICING_TYPE_LABELS[quote.quote_pricing_type] ?? quote.quote_pricing_type}
+              </Text>
+            ) : null}
           </View>
         </View>
 

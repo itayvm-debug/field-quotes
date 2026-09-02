@@ -8,7 +8,7 @@ import { QuoteSummary } from './QuoteSummary'
 import { PriceAdjustmentsEditor } from './PriceAdjustmentsEditor'
 import { FieldAutocomplete } from './FieldAutocomplete'
 import { ProjectImage } from './ProjectImage'
-import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
+import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
 interface Props {
@@ -41,6 +41,7 @@ const defaultHeader = (): QuoteHeaderDraft => {
     project_image_path: null,
     project_image_caption: '',
     project_image_fit: 'cover',
+    quote_pricing_type: null,
   }
 }
 
@@ -133,6 +134,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       project_image_path: header.project_image_path ?? null,
       project_image_caption: header.project_image_caption ?? '',
       project_image_fit: header.project_image_fit ?? 'cover',
+      quote_pricing_type: header.quote_pricing_type ?? null,
       // New quotes get 'draft'; existing quotes keep their current status
       ...(!savedId && { status: 'draft' as const }),
     }
@@ -447,6 +449,16 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         {/* Terms */}
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
           <h2 className="font-semibold text-gray-700">תנאים</h2>
+          <Field label="סוג הצעת מחיר">
+            <select value={header.quote_pricing_type ?? ''}
+              onChange={(e) => setHeaderField('quote_pricing_type', e.target.value || null)}
+              className={inputCls}>
+              <option value="">ללא הצגת סוג הצעה</option>
+              {Object.entries(QUOTE_PRICING_TYPE_LABELS).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="תנאי תשלום">
             <select value={paymentTermsSelectValue}
               onChange={(e) => handlePaymentTermsSelect(e.target.value)}

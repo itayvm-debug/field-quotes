@@ -115,6 +115,14 @@ export interface QuoteHeaderDraft {
   project_image_path?: string | null
   project_image_caption?: string
   project_image_fit?: 'cover' | 'contain'
+  quote_pricing_type?: string | null
+}
+
+export const QUOTE_PRICING_TYPE_LABELS: Record<string, string> = {
+  lump_sum: 'הצעה פאושלית',
+  measured: 'הצעה למדידה',
+  budgetary: 'הצעת אומדן / תקציבית',
+  daywork: 'עבודה יומית / רג׳י',
 }
 
 export const PREDEFINED_UNITS = [

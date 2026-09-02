@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calcSubtotal, calcVat, calcTotal, calcItemTotal, formatCurrency, formatDate } from '@/lib/calculations'
 import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
-import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
+import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, QUOTE_PRICING_TYPE_LABELS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
 import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
 
@@ -204,6 +204,11 @@ export default async function QuoteViewPage({ params }: Props) {
           {quote.project_description && (
             <p className="text-sm text-gray-600 mt-3 pt-3 border-t border-gray-100">
               {quote.project_description}
+            </p>
+          )}
+          {q.quote_pricing_type && QUOTE_PRICING_TYPE_LABELS[q.quote_pricing_type] && (
+            <p className="text-xs text-gray-400 mt-2">
+              {QUOTE_PRICING_TYPE_LABELS[q.quote_pricing_type]}
             </p>
           )}
           {quoteStatus === 'rejected' && statusNote && (

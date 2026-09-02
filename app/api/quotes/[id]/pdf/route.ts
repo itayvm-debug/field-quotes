@@ -162,6 +162,8 @@ export async function GET(
         vat_percentage: parseFloat(String(quote.vat_percentage)),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         price_adjustments: parsePriceAdjustments((quote as any).price_adjustments),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        quote_pricing_type: (quote as any).quote_pricing_type ?? null,
       },
       items,
       company: {
