@@ -8,6 +8,7 @@ import { QuoteSummary } from './QuoteSummary'
 import { PriceAdjustmentsEditor } from './PriceAdjustmentsEditor'
 import { FieldAutocomplete } from './FieldAutocomplete'
 import { ProjectImage } from './ProjectImage'
+import { ReorderItemsModal } from './ReorderItemsModal'
 import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
@@ -72,6 +73,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showReorder, setShowReorder] = useState(false)
 
   const [header, setHeader] = useState<QuoteHeaderDraft>({ ...defaultHeader(), ...initialHeader })
   const [items, setItems] = useState<QuoteItemDraft[]>(initialItems ?? [])
@@ -115,6 +117,45 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       const filtered = prev.filter((item) => item.tempId !== tempId)
       return filtered.map((item, idx) => ({ ...item, item_number: idx + 1 }))
     })
+  }
+
+  // ── Reorder items ────────────────────────────────────────────────────────────
+  // Returns null on success, or a Hebrew error string on failure.
+  // Local state is updated only after both DB passes succeed.
+  // The modal handles loading/error display and controls its own closing.
+  const handleReorderSave = async (reorderedItems: QuoteItemDraft[]): Promise<string | null> => {
+    const itemsWithDb = reorderedItems.filter((i) => i.dbId)
+
+    if (itemsWithDb.length > 0) {
+      const supabase = createClient()
+      const OFFSET = 10000
+
+      try {
+        // Pass 1 — temp values; awaited fully before Pass 2 begins
+        const pass1 = await Promise.all(
+          itemsWithDb.map((item) =>
+            supabase.from('quote_items').update({ item_number: item.item_number + OFFSET }).eq('id', item.dbId!)
+          )
+        )
+        const pass1Err = pass1.find((r) => r.error)
+        if (pass1Err?.error) return 'שגיאה בשמירת הסדר — נסה שוב'
+
+        // Pass 2 — final sequential values
+        const pass2 = await Promise.all(
+          itemsWithDb.map((item) =>
+            supabase.from('quote_items').update({ item_number: item.item_number }).eq('id', item.dbId!)
+          )
+        )
+        const pass2Err = pass2.find((r) => r.error)
+        if (pass2Err?.error) return 'שגיאה בשמירת הסדר — נסה שוב'
+      } catch {
+        return 'שגיאה בשמירת הסדר — נסה שוב'
+      }
+    }
+
+    // All DB work succeeded (or no DB items yet) — update local state
+    setItems(reorderedItems)
+    return null
   }
 
   // ── Core save (no UI side effects) ──────────────────────────────────────────
@@ -324,6 +365,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
   const paymentTermsSelectValue = paymentTermsIsCustom ? '__custom__' : header.payment_terms
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 pb-8">
       {/* Sticky top bar — offset below AppHeader */}
       <div className="sticky top-[64px] z-10 bg-white border-b border-gray-100 px-4 py-3">
@@ -485,7 +527,18 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
 
         {/* Items */}
         <section>
-          <h2 className="font-semibold text-gray-700 mb-3">סעיפים ({items.length})</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-700">סעיפים ({items.length})</h2>
+            {items.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setShowReorder(true)}
+                className="text-xs text-gray-500 font-medium px-3 py-1.5 border border-gray-200 rounded-lg active:bg-gray-50 transition-colors"
+              >
+                סידור סעיפים
+              </button>
+            )}
+          </div>
           <div className="space-y-3">
             {items.map((item) => (
               <QuoteItemCard
@@ -557,6 +610,15 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         )}
       </div>
     </div>
+
+    {showReorder && items.length > 1 && (
+      <ReorderItemsModal
+        items={items}
+        onSave={handleReorderSave}
+        onClose={() => setShowReorder(false)}
+      />
+    )}
+    </>
   )
 }
 
