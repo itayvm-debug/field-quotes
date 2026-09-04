@@ -755,15 +755,21 @@ function SectionTitle({ children }: { children: string }) {
 // notesRow spans full itemWrapper width (539 – notesRow.paddingH(6×2) = 527pt).
 // Notes rarely wrap; 60 chars/line is still conservative.
 const LAYOUT = {
-  // tableRow.paddingVertical:3×2=6  + Heebo 8.5pt×1.5≈13pt line + itemWrapper.border:1 + 6pt buffer
-  itemRowBase:          26,
+  // tableRow.paddingVertical:3×2=6  + Heebo 8.5pt×1.5≈13pt line + itemWrapper.border:1 + 4pt buffer
+  // Buffer reduced 6→4: react-pdf sub-pixel rounding accounted for, no hidden margin-bottom on rows.
+  itemRowBase:          24,
   descLineHeight:       13,   // Heebo fontSize 8.5 × 1.5
-  descCharsPerLine:     36,   // 222pt / 6pt avg Hebrew char (conservative)
+  // 222pt effective desc column width / 5.5pt avg Hebrew char ≈ 40 chars/line.
+  // 42 chars keeps ~5% conservative margin without over-estimating medium descriptions.
+  // Previous value of 36 caused 13pt phantom second lines for descriptions of 37–42 chars.
+  descCharsPerLine:     42,
   optionalLabelHeight:  10,   // optionalLabel fontSize 6.5 + marginBottom:1
   // notesRow: paddingTop:2 + paddingBottom:4 = 6pt; label "הערה" at 7.5×1.5≈11pt
   notesBase:            17,   // 6 (padding) + 11 (label line)
   notesLineHeight:      11,   // Heebo fontSize 7.5 × 1.5
-  notesCharsPerLine:    60,   // 527pt effective width / ~5.5pt char (conservative)
+  // 527pt effective notes width / 5.5pt avg char ≈ 96 chars/line.
+  // 72 chars keeps a wide safety margin against very wide characters or punctuation.
+  notesCharsPerLine:    72,
   // imageGrid: image.height:64 + imageGrid.paddingBottom:6; gap:4 between rows
   imageRowHeight:       70,   // 64 + 6
   imageRowGap:           4,
