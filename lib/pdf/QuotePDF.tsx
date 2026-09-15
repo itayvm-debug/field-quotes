@@ -1114,33 +1114,6 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
       CLOSING_SAFETY_MARGIN,
       FIRST_PAGE_ITEMS_BUDGET,
     })
-    // Closing block breakdown
-    const _dbgAdj = adjResult.adjustments.length
-    const _dbgBoxH = 2 * 22 + 25 + 10 + (_dbgAdj > 0 ? (_dbgAdj + 1) * 22 : 0) + (hasOptional ? 38 : 0)
-    const _dbgPT = quote.payment_terms ?? ''
-    const _dbgPTH = _dbgPT ? 14 + Math.max(1, Math.ceil(_dbgPT.length / 56)) * 13 : 0
-    const _dbgFirstRowH = Math.max(_dbgBoxH, _dbgPTH) + 6
-    const _dbgOptH = hasOptional ? 17 : 0
-    const _dbgExcl = quote.exclusions ?? ''
-    const _dbgExclH = _dbgExcl ? 28 + Math.max(1, Math.ceil(_dbgExcl.length / 96)) * 13 : 0
-    const _dbgSigH = !!(creator && quote.status !== 'draft')
-      ? (creator?.signature_url ? 95 : 55)
-      : 0
-    console.log('[pdf-closing-layout-debug]', {
-      quoteNumber: quote.quote_number,
-      remainingHeight: PAGE_1_CAPACITY - allItemsH,
-      estimatedClosingHeight: closingBlockH,
-      safetyMargin: CLOSING_SAFETY_MARGIN,
-      closingParts: {
-        financialSummaryHeight: _dbgBoxH,
-        paymentTermsHeight: _dbgPTH,
-        optionalNoticeHeight: _dbgOptH,
-        notesHeight: _dbgExclH,
-        signatureHeight: _dbgSigH,
-        gapsHeight: _dbgFirstRowH - Math.max(_dbgBoxH, _dbgPTH),
-      },
-      selectedLayout: selectedLayout.name,
-    })
   }
 
   const itemPages = selectedLayout.pages
