@@ -798,49 +798,71 @@ function estimateItemHeight(item: PdfItem): number {
   return h
 }
 
-// Estimates the rendered height of the summary block (financial totals, payment
-// terms, optional footnote, exclusions, signature). Used to reserve space on the
-// last items page so the block never gets pushed alone to a new page.
+// Estimates the rendered height of the closing block (financial summary, payment terms,
+// optional footnote, exclusions, signature). Used to reserve space and decide layout.
 //
-// Values derived from stylesheet measurements:
-//   summaryRow: paddingVertical:4×2=8 + text:12 + border:1 = 21pt each
-//   summaryTotalRow: paddingVertical:5×2=10 + text:14 = 24pt
-//   summaryBox borders + marginBottom: ~8pt
-//   Payment terms: side-by-side with the box — only adds height when taller than box
-//   Exclusions: borderTop+paddingTop+marginTop+label ≈ 28pt + 11pt/line
-//   Signature: borderTop+paddingTop+greeting+name+company+image ≈ 80pt
-function estimateSummaryBlockHeight({
-  hasPaymentTerms,
-  hasOptionItems,
+// Values derived from stylesheet measurements (Heebo font, ~1.5× line-height factor):
+//   summaryRow: paddingV:4×2=8 + text(8.5pt):13 + border:1 = 22pt/row
+//   summaryTotalRow: paddingV:5×2=10 + text(10pt):15 = 25pt
+//   summaryBox overhead (borders + container marginBottom): 10pt
+//   Payment terms column (~307pt wide → ~56 chars/line):
+//     termLabel(9pt):12 + termValue(8.5pt):13/line + paddingTop:2
+//   Exclusions overhead: border:1+paddingTop:(compact?2:5)+marginTop:(compact?1:4)+
+//     marginBottom:(compact?2:6)+label:12  →  28pt normal / 18pt compact
+//   Exclusion per-line: 8.5pt font → 13pt; full-width 539pt → ~96 chars/line
+//   Signature: border:1+paddingTop:(compact?4:6)+greeting:15+name:14+company:13+
+//     imageH:40+marginBottom:(compact?3:6)
+//     With image: 95pt normal / 90pt compact; without image: 55pt normal / 46pt compact
+function estimateClosingBlockHeight({
+  adjCount,
+  hasOptionalItems,
+  paymentTermsText,
   exclusionsText,
   hasSignature,
-  adjCount,
+  hasSignatureImage,
+  compact = false,
 }: {
-  hasPaymentTerms: boolean
-  hasOptionItems: boolean
+  adjCount: number
+  hasOptionalItems: boolean
+  paymentTermsText: string
   exclusionsText: string
   hasSignature: boolean
-  adjCount: number
+  hasSignatureImage: boolean
+  compact?: boolean
 }): number {
-  // Base: subtotal row + VAT row + total row + borders + marginBottom
-  // (2 × summaryRow:21) + summaryTotalRow:24 + borders+margin:8 = 74pt
-  // Each price adjustment adds 1 summaryRow; if any adjustments also add
-  // the "after adjustments" row (+1 more).
-  let h = 74 + (adjCount > 0 ? (adjCount + 1) * 21 : 0)
-  // Payment terms is side-by-side — conservative +8pt for extra height above box
-  if (hasPaymentTerms) h += 8
-  // Optional rows: optionalInfoRow:18 + grandTotalOptionsRow:20 + footnote:18 = 56pt
-  if (hasOptionItems) h += 56
-  // Exclusions: overhead 28pt + 11pt per wrapped line
-  if (exclusionsText) {
-    const lines = Math.max(1, Math.ceil(exclusionsText.length / 75))
-    h += 28 + lines * 11
+  // summaryBox: 2 regular rows (subtotal + VAT) + 1 total row + overhead
+  let summaryBoxH = 2 * 22 + 25 + 10
+  if (adjCount > 0) summaryBoxH += (adjCount + 1) * 22  // adj rows + "after adj" row
+  if (hasOptionalItems) summaryBoxH += 18 + 20           // optionalInfoRow + grandTotalOptionsRow
+
+  // paymentTerms column (~307pt wide, ~56 chars/line)
+  let payTermsH = 0
+  if (paymentTermsText) {
+    const lines = Math.max(1, Math.ceil(paymentTermsText.length / 56))
+    payTermsH = 14 + lines * 13  // overhead(termLabel:12 + paddingTop:2) + lines
   }
-  // Signature: borderTop+paddingTop+greeting+name+company+image = ~80pt
-  if (hasSignature) h += 80
-  // Small buffer — PAGE_SAFETY_MARGIN is already applied to item budgets separately
-  h += 10
-  return h
+
+  // flex row: taller of summaryBox or payTerms + marginBottom
+  const firstRowH = Math.max(summaryBoxH, payTermsH) + (compact ? 2 : 6)
+
+  // optional footnote (below flex row)
+  const optFootnoteH = hasOptionalItems ? 17 : 0  // marginTop:6 + text(7.5pt):11
+
+  // exclusions (~96 chars/line, 8.5pt font → 13pt/line)
+  let exclusionsH = 0
+  if (exclusionsText) {
+    const overhead = compact ? 18 : 28  // border+paddingTop+marginTop+marginBottom+label
+    const lines = Math.max(1, Math.ceil(exclusionsText.length / 96))
+    exclusionsH = overhead + lines * 13
+  }
+
+  // signature
+  let signatureH = 0
+  if (hasSignature) {
+    signatureH = hasSignatureImage ? (compact ? 90 : 95) : (compact ? 46 : 55)
+  }
+
+  return firstRowH + optFootnoteH + exclusionsH + signatureH
 }
 
 // Estimates the height of the project image block on page 1.
@@ -896,14 +918,6 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
   const localLogo = path.join(process.cwd(), 'public', 'company-logo.png')
   const effectiveLogo = logoUrl ?? localLogo
 
-  const summaryReserve = estimateSummaryBlockHeight({
-    hasPaymentTerms: !!quote.payment_terms,
-    hasOptionItems: hasOptional,
-    exclusionsText: quote.exclusions ?? '',
-    hasSignature: !!(creator && quote.status !== 'draft'),
-    adjCount: adjResult.adjustments.length,
-  })
-
   // ── Page item budgets ──────────────────────────────────────────────────────
   // A4 = 841pt; page.paddingBottom:40 → usable = 801pt.
   //
@@ -927,13 +941,22 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
   const PAGE_1_CAPACITY         = PAGE_USABLE - FIRST_PAGE_OVERHEAD
   const FIRST_PAGE_ITEMS_BUDGET = PAGE_1_CAPACITY - PAGE_SAFETY_MARGIN
   const CONT_PAGE_ITEMS_BUDGET  = PAGE_USABLE - CONT_PAGE_OVERHEAD - PAGE_SAFETY_MARGIN  // 702pt
+  // Extra buffer on single-page fit checks (A / AC) to absorb render-engine
+  // sub-pixel rounding and minor font-metric discrepancies in the closing block.
+  const CLOSING_SAFETY_MARGIN   = 20
 
   const allItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
 
-  // Compact-mode reduces estimated summary height by tightening spacing around the
-  // flex row, exclusions block, and signature section (~20pt total saved).
-  const COMPACT_SUMMARY_SAVINGS = 20
-  const compactSummaryReserve = Math.max(0, summaryReserve - COMPACT_SUMMARY_SAVINGS)
+  const _closingArgs = {
+    adjCount: adjResult.adjustments.length,
+    hasOptionalItems: hasOptional,
+    paymentTermsText: quote.payment_terms ?? '',
+    exclusionsText: quote.exclusions ?? '',
+    hasSignature: !!(creator && quote.status !== 'draft'),
+    hasSignatureImage: !!(creator?.signature_url),
+  }
+  const closingBlockH        = estimateClosingBlockHeight({ ..._closingArgs, compact: false })
+  const compactClosingBlockH = estimateClosingBlockHeight({ ..._closingArgs, compact: true })
 
   // B (summary-detached) is only valid when page 1 is nearly full. If more unused
   // height than this remains, C (lastItemWithSummary) is preferred — it looks better.
@@ -962,14 +985,15 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
   // Candidate A: all items + summary, normal spacing ───────────────────────────
   const cA = (() => {
-    const valid = allItemsH + summaryReserve <= PAGE_1_CAPACITY
-    const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH - summaryReserve)
+    const threshold = PAGE_1_CAPACITY - CLOSING_SAFETY_MARGIN
+    const valid = allItemsH + closingBlockH <= threshold
+    const unusedH = Math.max(0, threshold - allItemsH - closingBlockH)
     return {
       name: 'A-single-page',
       valid,
       rejectionReason: valid
         ? ''
-        : `items(${Math.round(allItemsH)}) + summary(${Math.round(summaryReserve)}) = ${Math.round(allItemsH + summaryReserve)} > capacity(${PAGE_1_CAPACITY})`,
+        : `items(${Math.round(allItemsH)}) + closing(${Math.round(closingBlockH)}) = ${Math.round(allItemsH + closingBlockH)} > threshold(${threshold})`,
       pages: (valid ? [items.slice()] : [[]]) as PdfItem[][],
       summaryDetached: false,
       compact: false,
@@ -979,9 +1003,10 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
   // Candidate AC: all items + summary, compact spacing ─────────────────────────
   const cAC = (() => {
-    const aFit = allItemsH + summaryReserve <= PAGE_1_CAPACITY
-    const valid = !aFit && allItemsH + compactSummaryReserve <= PAGE_1_CAPACITY
-    const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH - compactSummaryReserve)
+    const threshold = PAGE_1_CAPACITY - CLOSING_SAFETY_MARGIN
+    const aFit = allItemsH + closingBlockH <= threshold
+    const valid = !aFit && allItemsH + compactClosingBlockH <= threshold
+    const unusedH = Math.max(0, threshold - allItemsH - compactClosingBlockH)
     return {
       name: 'AC-single-page-compact',
       valid,
@@ -989,7 +1014,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
         ? 'A is better'
         : valid
           ? ''
-          : `items(${Math.round(allItemsH)}) + compactSummary(${Math.round(compactSummaryReserve)}) > capacity(${PAGE_1_CAPACITY})`,
+          : `items(${Math.round(allItemsH)}) + compactClosing(${Math.round(compactClosingBlockH)}) > threshold(${threshold})`,
       pages: (valid ? [items.slice()] : [[]]) as PdfItem[][],
       summaryDetached: false,
       compact: true,
@@ -1003,7 +1028,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
     const lastIdx = split.length - 1
     const lastPageCap = lastIdx === 0 ? PAGE_1_CAPACITY : CONT_PAGE_ITEMS_BUDGET
     const lastPageH = split[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
-    if (lastPageH + summaryReserve > lastPageCap && split[lastIdx].length > 1) {
+    if (lastPageH + closingBlockH > lastPageCap && split[lastIdx].length > 1) {
       split.push([split[lastIdx].pop()!])
     }
     const lastItemCount = split[split.length - 1].length
@@ -1026,8 +1051,9 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
   // Valid only when A/AC don't fit, all items alone fit on page 1, and page 1 is
   // nearly full. When page 1 would have too much empty space, C looks better.
   const cB = (() => {
-    const aFit  = allItemsH + summaryReserve <= PAGE_1_CAPACITY
-    const acFit = !aFit && allItemsH + compactSummaryReserve <= PAGE_1_CAPACITY
+    const threshold = PAGE_1_CAPACITY - CLOSING_SAFETY_MARGIN
+    const aFit  = allItemsH + closingBlockH <= threshold
+    const acFit = !aFit && allItemsH + compactClosingBlockH <= threshold
     const itemsFitPage1 = allItemsH <= PAGE_1_CAPACITY
     const unusedH = Math.max(0, PAGE_1_CAPACITY - allItemsH)
     const page1NearlyFull = unusedH <= SUMMARY_ONLY_UNUSED_MAX
@@ -1082,10 +1108,38 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
       })),
       selected: selectedLayout.name,
       allItemsH: Math.round(allItemsH),
-      summaryReserve: Math.round(summaryReserve),
-      compactSummaryReserve: Math.round(compactSummaryReserve),
+      closingBlockH: Math.round(closingBlockH),
+      compactClosingBlockH: Math.round(compactClosingBlockH),
       PAGE_1_CAPACITY,
+      CLOSING_SAFETY_MARGIN,
       FIRST_PAGE_ITEMS_BUDGET,
+    })
+    // Closing block breakdown
+    const _dbgAdj = adjResult.adjustments.length
+    const _dbgBoxH = 2 * 22 + 25 + 10 + (_dbgAdj > 0 ? (_dbgAdj + 1) * 22 : 0) + (hasOptional ? 38 : 0)
+    const _dbgPT = quote.payment_terms ?? ''
+    const _dbgPTH = _dbgPT ? 14 + Math.max(1, Math.ceil(_dbgPT.length / 56)) * 13 : 0
+    const _dbgFirstRowH = Math.max(_dbgBoxH, _dbgPTH) + 6
+    const _dbgOptH = hasOptional ? 17 : 0
+    const _dbgExcl = quote.exclusions ?? ''
+    const _dbgExclH = _dbgExcl ? 28 + Math.max(1, Math.ceil(_dbgExcl.length / 96)) * 13 : 0
+    const _dbgSigH = !!(creator && quote.status !== 'draft')
+      ? (creator?.signature_url ? 95 : 55)
+      : 0
+    console.log('[pdf-closing-layout-debug]', {
+      quoteNumber: quote.quote_number,
+      remainingHeight: PAGE_1_CAPACITY - allItemsH,
+      estimatedClosingHeight: closingBlockH,
+      safetyMargin: CLOSING_SAFETY_MARGIN,
+      closingParts: {
+        financialSummaryHeight: _dbgBoxH,
+        paymentTermsHeight: _dbgPTH,
+        optionalNoticeHeight: _dbgOptH,
+        notesHeight: _dbgExclH,
+        signatureHeight: _dbgSigH,
+        gapsHeight: _dbgFirstRowH - Math.max(_dbgBoxH, _dbgPTH),
+      },
+      selectedLayout: selectedLayout.name,
     })
   }
 
@@ -1447,11 +1501,12 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
         )
       })}
 
-      {/* Candidate B: summary-only continuation page when summaryDetached is true */}
+      {/* Closing page: shown when the closing block doesn't fit on the last items page */}
       {summaryDetached && (
         <Page size="A4" style={s.page}>
           {renderContinuationHeader()}
           <View style={{ paddingHorizontal: 28 }}>
+            <Text style={s.continuationLabel}>{'סיכום ההצעה'}</Text>
             {renderSummaryBlock()}
           </View>
           {renderWatermark()}
