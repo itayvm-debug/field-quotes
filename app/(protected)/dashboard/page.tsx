@@ -22,7 +22,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const q = (supabase as any)
         .from('quotes')
-        .select('*, quote_items(quantity, unit_price)')
+        .select('*, quote_items(quantity, unit_price, is_optional)')
         .order('created_at', { ascending: false })
       if (statusFilter === 'archived') return q.eq('status', 'archived')
       if (statusFilter) return q.eq('status', statusFilter)

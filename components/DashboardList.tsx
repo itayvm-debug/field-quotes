@@ -248,7 +248,7 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
               (quote.client_address as string | null | undefined)?.trim() ||
               (quote.project_description as string | null | undefined)?.trim() ||
               ''
-            const items = (quote.quote_items ?? []) as Array<{ quantity: number; unit_price: number }>
+            const items = (quote.quote_items ?? []) as Array<{ quantity: number; unit_price: number; is_optional?: boolean }>
             const draftItems: QuoteItemDraft[] = items.map((i) => ({
               tempId: '',
               item_number: 0,
@@ -257,6 +257,7 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
               notes: '',
               quantity: String(i.quantity),
               unit_price: String(i.unit_price),
+              is_optional: i.is_optional ?? false,
             }))
             const subtotal = calcSubtotal(draftItems)
             const { adjustedTotal: adjustedSubtotal } = applyPriceAdjustments(
@@ -265,6 +266,12 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
             const vat = calcVat(adjustedSubtotal, quote.vat_percentage)
             const total = calcTotal(adjustedSubtotal, vat)
             const totalFormatted = formatCurrency(total)
+            // Optional items (display-only, same logic as PDF)
+            const optionalItems = items.filter((i) => i.is_optional)
+            const hasOptional = optionalItems.length > 0
+            const optionalSubtotal = optionalItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+            const optionalVat = calcVat(optionalSubtotal, quote.vat_percentage)
+            const grandTotalWithOptions = calcTotal(total + optionalSubtotal, optionalVat)
             const quoteStatus = quote.status as QuoteStatus
             const paymentStatus = ((quote.payment_status) ?? 'unpaid') as PaymentStatus
             const paidAmount = parseFloat(quote.paid_amount ?? 0)
@@ -341,9 +348,24 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
                     </div>
                     <div className="text-left shrink-0">
                       <p className="font-bold text-gray-900 text-base">{totalFormatted}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {items.length} {items.length === 1 ? 'סעיף' : 'סעיפים'}
-                      </p>
+                      {hasOptional ? (
+                        <>
+                          <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">סה״כ לביצוע</p>
+                          <span className="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-500 mt-1 leading-none">
+                            + סעיפי אופציה
+                          </span>
+                          <p className="text-[10px] text-gray-400 mt-1 leading-tight">
+                            {'אופציות: '}{formatCurrency(optionalSubtotal)}
+                          </p>
+                          <p className="text-[10px] text-gray-400 leading-tight">
+                            {'כולל: '}{formatCurrency(grandTotalWithOptions)}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {items.length} {items.length === 1 ? 'סעיף' : 'סעיפים'}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </Link>
