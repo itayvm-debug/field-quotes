@@ -405,7 +405,7 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const logoId = wb.addImage({ buffer: logoBuf as any, extension: logoExt })
     ws.addImage(logoId, {
-      tl: { col: Math.max(0, LAST_COL - 2), row: 0 },  // 0-based; near left edge in RTL
+      tl: { col: LAST_COL - 0.8, row: 0.1 },  // 0-based fractional; LAST_COL-1 is visual-left in RTL
       ext: { width: logoTargetW, height: logoTargetH },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       editAs: 'oneCell' as any,
