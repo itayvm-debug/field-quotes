@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { parsePriceAdjustments, applyPriceAdjustments } from '@/lib/priceAdjustments'
 import { calcVat, calcTotal } from '@/lib/calculations'
 import { QUOTE_PRICING_TYPE_LABELS, STATUS_LABELS } from '@/types'
+import { parseNotes } from '@/lib/notesFormat'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,55 @@ function thinBorders(argb = CLR.border): Partial<ExcelJS.Borders> {
 
 function rtlMid(horizontal: ExcelJS.Alignment['horizontal'] = 'right'): Partial<ExcelJS.Alignment> {
   return { horizontal, vertical: 'middle', readingOrder: 'rtl' }
+}
+
+// Convert 1-based column index to Excel letter (A, B, ..., Z, AA, ...)
+function colLetter(n: number): string {
+  let s = ''
+  while (n > 0) {
+    const r = (n - 1) % 26
+    s = String.fromCharCode(65 + r) + s
+    n = Math.floor((n - 1) / 26)
+  }
+  return s
+}
+
+// Convert stored notes (JSON paragraphs OR plain text) → ExcelJS cell value.
+// Returns rich text when any paragraph is bold, plain string otherwise.
+// Never exposes raw JSON to the user.
+function notesToExcelValue(raw: string | null | undefined): string | ExcelJS.CellRichTextValue {
+  if (!raw?.trim()) return ''
+
+  let paras
+  try {
+    paras = parseNotes(raw)
+  } catch {
+    return raw // absolute fallback — should never happen
+  }
+
+  // Drop trailing all-empty paragraphs
+  let end = paras.length - 1
+  while (end > 0 && !paras[end].text) end--
+  const active = paras.slice(0, end + 1)
+
+  if (active.length === 0 || (active.length === 1 && !active[0].text)) return ''
+
+  // If no paragraph has bold, a plain joined string is enough
+  const anyBold = active.some(p => p.bold)
+  if (!anyBold) return active.map(p => p.text).join('\n')
+
+  // Build ExcelJS rich text: each paragraph is one segment, separated by '\n' segments
+  const richText: ExcelJS.RichText[] = []
+  for (let i = 0; i < active.length; i++) {
+    if (i > 0) richText.push({ text: '\n', font: { name: 'Arial', size: 10 } })
+    if (active[i].text) {
+      richText.push({
+        text: active[i].text,
+        font: { name: 'Arial', size: 10, bold: active[i].bold },
+      })
+    }
+  }
+  return richText.length > 0 ? { richText } : ''
 }
 
 // ── main handler ─────────────────────────────────────────────────────────────
@@ -372,7 +422,7 @@ export async function GET(
       { col: C_QTY,   val: qty,   numFmt: QTY_FMT },
       { col: C_PRICE, val: price, numFmt: ILS_FMT },
       { col: C_TOTAL, val: { formula: `=E${rowNum}*F${rowNum}`, result: itemTotal }, numFmt: ILS_FMT },
-      { col: C_NOTES, val: item.notes ?? '', wrap: true },
+      { col: C_NOTES, val: notesToExcelValue(item.notes), wrap: true },
     ]
 
     for (const { col, val, numFmt, wrap, bold } of cells) {
@@ -497,22 +547,21 @@ export async function GET(
     rowNum++
   }
 
-  // ── FREEZE PANE + PRINT SETUP ─────────────────────────────────────────────
-  ws.views = [{
-    rightToLeft: true,
-    state: 'frozen',
-    ySplit: tableHeaderRowNum,
-  }]
+  // ── VIEWS + PRINT SETUP ───────────────────────────────────────────────────
+  // RTL only — no freeze pane
+  ws.views = [{ rightToLeft: true }]
 
   ws.pageSetup.orientation    = 'landscape'
+  ws.pageSetup.paperSize      = 9   // A4
   ws.pageSetup.fitToPage      = true
-  ws.pageSetup.fitToWidth     = 1
+  ws.pageSetup.fitToWidth     = 1   // fit all columns to one page wide
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(ws.pageSetup as any).fitToHeight = 0
+  ;(ws.pageSetup as any).fitToHeight = 0  // unlimited pages tall
+  ws.pageSetup.printArea      = `A1:${colLetter(LAST_COL)}${rowNum - 1}`
   ws.pageSetup.printTitlesRow = `${tableHeaderRowNum}:${tableHeaderRowNum}`
   ws.pageSetup.margins        = { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 }
 
-  // Suppress unused-variable warnings in production
+  // Suppress unused-variable warnings
   void firstItemRow
   void lastItemRow
 
