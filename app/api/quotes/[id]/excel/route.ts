@@ -102,9 +102,9 @@ function colLetter(n: number): string {
 
 // Convert stored notes (JSON paragraphs OR plain text) → ExcelJS cell value.
 // Returns rich text when any paragraph is bold, plain string otherwise.
-// Never exposes raw JSON to the user.
-function notesToExcelValue(raw: string | null | undefined): string | ExcelJS.CellRichTextValue {
-  if (!raw?.trim()) return ''
+// Returns null (not '') for empty notes so ExcelJS writes a truly empty cell.
+function notesToExcelValue(raw: string | null | undefined): string | ExcelJS.CellRichTextValue | null {
+  if (!raw?.trim()) return null
 
   let paras
   try {
@@ -118,7 +118,7 @@ function notesToExcelValue(raw: string | null | undefined): string | ExcelJS.Cel
   while (end > 0 && !paras[end].text) end--
   const active = paras.slice(0, end + 1)
 
-  if (active.length === 0 || (active.length === 1 && !active[0].text)) return ''
+  if (active.length === 0 || (active.length === 1 && !active[0].text)) return null
 
   // If no paragraph has bold, a plain joined string is enough
   const anyBold = active.some(p => p.bold)
@@ -135,7 +135,7 @@ function notesToExcelValue(raw: string | null | undefined): string | ExcelJS.Cel
       })
     }
   }
-  return richText.length > 0 ? { richText } : ''
+  return richText.length > 0 ? { richText } : null
 }
 
 // ── main handler ─────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: company } = await (supabase as any)
     .from('company_settings')
-    .select('company_name, company_id_number, address, phone, email')
+    .select('company_name, company_id_number, address, phone, email, logo_storage_path')
     .single()
 
   // Creator profile
@@ -180,6 +180,14 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (a: any, b: any) => (a.item_number ?? 0) - (b.item_number ?? 0)
   )
+
+  // Download company logo
+  let logoBuf: Buffer | null = null
+  let logoExt: 'jpeg' | 'png' | 'gif' = 'png'
+  if (company?.logo_storage_path) {
+    logoBuf = await dlBuf(supabase, 'company-assets', company.logo_storage_path)
+    if (logoBuf) logoExt = imgExt(company.logo_storage_path)
+  }
 
   // Download project image
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -288,7 +296,7 @@ export async function GET(
     c.font  = { name: 'Arial', size: 14, bold: true, color: { argb: CLR.white } }
     c.fill  = solidFill(CLR.orange)
     c.alignment = rtlMid()
-    ws.getRow(rowNum).height = 30
+    ws.getRow(rowNum).height = logoBuf ? 52 : 30
     rowNum++
   }
 
@@ -341,6 +349,19 @@ export async function GET(
 
   // ── WORKSHEET HEADER ──────────────────────────────────────────────────────
   titleRow(company?.company_name ?? 'הצעת מחיר')
+
+  // Logo: embedded in the title row at the upper-left (high column = visual left in RTL)
+  if (logoBuf) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const logoId = wb.addImage({ buffer: logoBuf as any, extension: logoExt })
+    ws.addImage(logoId, {
+      tl: { col: Math.max(0, LAST_COL - 2), row: 0 },  // 0-based; near left edge in RTL
+      ext: { width: 110, height: 50 },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editAs: 'oneCell' as any,
+    })
+  }
+
   subtitleRow('הצעת מחיר')
   emptyRow()
 
@@ -448,7 +469,7 @@ export async function GET(
 
     const cells: Array<{ col: number; val: ExcelJS.CellValue; numFmt?: string; wrap?: boolean; bold?: boolean }> = [
       { col: C_NUM,   val: item.item_number },
-      { col: C_LBL,   val: isOpt ? 'כן' : '', bold: isOpt },
+      { col: C_LBL,   val: isOpt ? 'כן' : null, bold: isOpt },
       { col: C_DESC,  val: item.description, wrap: true },
       { col: C_UNIT,  val: item.unit },
       { col: C_QTY,   val: qty,   numFmt: QTY_FMT },
