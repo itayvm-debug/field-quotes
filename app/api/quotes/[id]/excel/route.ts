@@ -61,6 +61,34 @@ function rtlMid(horizontal: ExcelJS.Alignment['horizontal'] = 'right'): Partial<
   return { horizontal, vertical: 'middle', readingOrder: 'rtl' }
 }
 
+// ── Row-height estimation ─────────────────────────────────────────────────────
+// Column widths (char units) for the two wrapping columns — must match colDefs below.
+const COL_W_DESC  = 45
+const COL_W_NOTES = 35
+// Height constants (points)
+const ROW_H_BASE  = 20   // minimum item row height
+const ROW_H_IMAGE = 80   // row height when images are present (≈107 px)
+const LINE_PT     = 15   // points per wrapped text line
+const LINE_PAD    = 6    // top + bottom cell padding
+
+// How many display lines will `text` require in a column of `colW` char-units wide?
+// Accounts for explicit \n and line-wrap; uses 0.9× char-units as chars-per-line.
+function estimateWrappedLines(text: string, colW: number): number {
+  if (!text) return 1
+  const cpl = Math.max(8, Math.floor(colW * 0.9))
+  return text.split('\n').reduce(
+    (sum, line) => sum + Math.max(1, Math.ceil((line.length || 1) / cpl)),
+    0
+  )
+}
+
+// Extract plain text from stored notes (all bold/non-bold segments joined) for height estimation.
+function notesPlainText(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ''
+  try { return parseNotes(raw).map(p => p.text).filter(Boolean).join('\n') }
+  catch { return '' }
+}
+
 // Convert 1-based column index to Excel letter (A, B, ..., Z, AA, ...)
 function colLetter(n: number): string {
   let s = ''
@@ -409,8 +437,12 @@ export async function GET(
     const itemTotal = Math.round(qty * price * 100) / 100
     const bgArgb  = isOpt ? CLR.optional : CLR.white
 
+    // Dynamic row height: max of description height, notes height, image height
+    const descH  = LINE_PAD + estimateWrappedLines(item.description ?? '', COL_W_DESC)  * LINE_PT
+    const npt    = notesPlainText(item.notes)
+    const notesH = npt ? LINE_PAD + estimateWrappedLines(npt, COL_W_NOTES) * LINE_PT : 0
     const hasImgs = imgs.some(Boolean)
-    const rowH    = hasImgs ? 80 : 18
+    const rowH   = Math.max(ROW_H_BASE, descH, notesH, hasImgs ? ROW_H_IMAGE : 0)
     const r = ws.getRow(rowNum)
     r.height = rowH
 
