@@ -39,6 +39,46 @@ function imgExt(path: string): 'jpeg' | 'png' | 'gif' {
   return 'png'
 }
 
+// Read pixel dimensions directly from a PNG / JPEG / GIF / WebP buffer.
+// Returns null when the format is unrecognised — caller should fall back to a square.
+function readImgDims(buf: Buffer): { w: number; h: number } | null {
+  if (buf.length < 24) return null
+  // PNG: signature 8 bytes, then IHDR chunk: 4 len + 4 "IHDR" + 4 width + 4 height
+  if (buf[0] === 0x89 && buf[1] === 0x50) {
+    return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
+  }
+  // GIF: "GIF8" header, width/height at bytes 6-9 (little-endian uint16)
+  if (buf[0] === 0x47 && buf[1] === 0x49) {
+    return { w: buf.readUInt16LE(6), h: buf.readUInt16LE(8) }
+  }
+  // JPEG: scan for SOF0/SOF1/SOF2 (0xFF 0xC0–0xC2) marker
+  if (buf[0] === 0xFF && buf[1] === 0xD8) {
+    let i = 2
+    while (i + 8 < buf.length) {
+      if (buf[i] !== 0xFF) break
+      const marker = buf[i + 1]
+      if (marker >= 0xC0 && marker <= 0xC2) {
+        return { w: buf.readUInt16BE(i + 7), h: buf.readUInt16BE(i + 5) }
+      }
+      const segLen = buf.readUInt16BE(i + 2)
+      i += 2 + segLen
+    }
+    return null
+  }
+  // WebP: "RIFF????WEBP"
+  if (buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') {
+    const chunkType = buf.slice(12, 16).toString('ascii')
+    if (chunkType === 'VP8 ' && buf.length >= 30) {
+      return { w: (buf.readUInt16LE(26) & 0x3FFF) + 1, h: (buf.readUInt16LE(28) & 0x3FFF) + 1 }
+    }
+    if (chunkType === 'VP8L' && buf.length >= 25) {
+      const bits = buf.readUInt32LE(21)
+      return { w: (bits & 0x3FFF) + 1, h: ((bits >> 14) & 0x3FFF) + 1 }
+    }
+  }
+  return null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function dlBuf(supabase: any, bucket: string, path: string): Promise<Buffer | null> {
   try {
@@ -181,12 +221,21 @@ export async function GET(
     (a: any, b: any) => (a.item_number ?? 0) - (b.item_number ?? 0)
   )
 
-  // Download company logo
+  // Download company logo and compute display size preserving aspect ratio
   let logoBuf: Buffer | null = null
   let logoExt: 'jpeg' | 'png' | 'gif' = 'png'
+  let logoTargetW = 0
+  let logoTargetH = 0
   if (company?.logo_storage_path) {
     logoBuf = await dlBuf(supabase, 'company-assets', company.logo_storage_path)
-    if (logoBuf) logoExt = imgExt(company.logo_storage_path)
+    if (logoBuf) {
+      logoExt = imgExt(company.logo_storage_path)
+      const dims = readImgDims(logoBuf)
+      logoTargetH = 48
+      logoTargetW = dims
+        ? Math.round(logoTargetH * (dims.w / dims.h))
+        : logoTargetH  // square fallback when format unrecognised
+    }
   }
 
   // Download project image
@@ -296,7 +345,8 @@ export async function GET(
     c.font  = { name: 'Arial', size: 14, bold: true, color: { argb: CLR.white } }
     c.fill  = solidFill(CLR.orange)
     c.alignment = rtlMid()
-    ws.getRow(rowNum).height = logoBuf ? 52 : 30
+    // px → pt: 1px = 0.75pt at 96dpi; add 6pt padding so the logo isn't clipped
+    ws.getRow(rowNum).height = logoBuf ? Math.ceil(logoTargetH * 0.75) + 6 : 30
     rowNum++
   }
 
@@ -356,7 +406,7 @@ export async function GET(
     const logoId = wb.addImage({ buffer: logoBuf as any, extension: logoExt })
     ws.addImage(logoId, {
       tl: { col: Math.max(0, LAST_COL - 2), row: 0 },  // 0-based; near left edge in RTL
-      ext: { width: 110, height: 50 },
+      ext: { width: logoTargetW, height: logoTargetH },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       editAs: 'oneCell' as any,
     })
