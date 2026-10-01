@@ -394,7 +394,7 @@ export default async function QuoteViewPage({ params }: Props) {
           </section>
         )}
 
-        {/* PDF + Edit bottom buttons */}
+        {/* PDF + Excel + Edit bottom buttons */}
         <div className="flex gap-3">
           <Link
             href={`/quotes/${id}/pdf-view`}
@@ -402,6 +402,12 @@ export default async function QuoteViewPage({ params }: Props) {
           >
             צפה ב-PDF
           </Link>
+          <a
+            href={`/api/quotes/${id}/excel`}
+            className="px-4 py-3.5 border border-green-300 rounded-2xl text-green-700 font-semibold text-sm active:bg-green-50 bg-white whitespace-nowrap"
+          >
+            ⬇ Excel
+          </a>
           {(userRole === 'admin' || userRole === 'manager' || userRole === 'user') && (
             <Link
               href={`/quotes/${id}/edit`}
