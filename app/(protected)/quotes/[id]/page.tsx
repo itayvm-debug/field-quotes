@@ -5,7 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calcSubtotal, calcVat, calcTotal, calcItemTotal, formatCurrency, formatDate } from '@/lib/calculations'
+import { getQuoteBaseTotal, calcVat, calcTotal, calcItemTotal, formatCurrency, formatDate } from '@/lib/calculations'
 import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
 import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, QUOTE_PRICING_TYPE_LABELS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
@@ -154,12 +154,16 @@ export default async function QuoteViewPage({ params }: Props) {
     })
   )
 
+  const pricingMode = ((q as any).pricing_mode ?? 'items') as 'items' | 'overall'
+  const manualTotal = (q as any).manual_total as number | null
+  const isOverallMode = pricingMode === 'overall'
+
   const draftItems: QuoteItemDraft[] = sortedItems.map((i) => ({
     tempId: i.id, item_number: i.item_number, description: i.description,
     unit: i.unit, notes: i.notes, quantity: String(i.quantity), unit_price: String(i.unit_price),
     is_optional: i.is_optional,
   }))
-  const subtotal = calcSubtotal(draftItems)
+  const subtotal = getQuoteBaseTotal(draftItems, pricingMode, manualTotal)
   const priceAdjs = parsePriceAdjustments(q.price_adjustments)
   const adjResult = applyPriceAdjustments(subtotal, priceAdjs)
   const adjustedSubtotal = adjResult.adjustedTotal
@@ -260,17 +264,19 @@ export default async function QuoteViewPage({ params }: Props) {
                       </p>
                     )}
                   </div>
-                  <div className="text-left shrink-0">
-                    <p className={`font-semibold text-sm ${(item as {is_optional?: boolean}).is_optional ? 'text-gray-400' : 'text-gray-900'}`}>
-                      {formatCurrency(item.quantity * item.unit_price)}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {item.quantity} {item.unit} × {formatCurrency(item.unit_price)}
-                    </p>
-                    {(item as {is_optional?: boolean}).is_optional && (
-                      <p className="text-xs text-amber-500 mt-0.5">לא בסה״כ</p>
-                    )}
-                  </div>
+                  {(!isOverallMode || (item as {is_optional?: boolean}).is_optional) && (
+                    <div className="text-left shrink-0">
+                      <p className={`font-semibold text-sm ${(item as {is_optional?: boolean}).is_optional ? 'text-gray-400' : 'text-gray-900'}`}>
+                        {formatCurrency(item.quantity * item.unit_price)}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {item.quantity} {item.unit} × {formatCurrency(item.unit_price)}
+                      </p>
+                      {(item as {is_optional?: boolean}).is_optional && (
+                        <p className="text-xs text-amber-500 mt-0.5">לא בסה״כ</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {item.images.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 mt-3">
@@ -292,7 +298,7 @@ export default async function QuoteViewPage({ params }: Props) {
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
-              <span>{adjResult.adjustments.length > 0 ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ'}</span>
+              <span>{isOverallMode ? 'מחיר כולל להצעה' : (adjResult.adjustments.length > 0 ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ')}</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
             {adjResult.adjustments.map((adj) => (

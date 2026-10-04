@@ -9,7 +9,7 @@ import { PriceAdjustmentsEditor } from './PriceAdjustmentsEditor'
 import { FieldAutocomplete } from './FieldAutocomplete'
 import { ProjectImage } from './ProjectImage'
 import { ReorderItemsModal } from './ReorderItemsModal'
-import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
+import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, PRICING_MODE_LABELS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
 interface Props {
@@ -43,6 +43,8 @@ const defaultHeader = (): QuoteHeaderDraft => {
     project_image_caption: '',
     project_image_fit: 'cover',
     quote_pricing_type: null,
+    pricing_mode: 'items',
+    manual_total: '',
   }
 }
 
@@ -176,6 +178,10 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       project_image_caption: header.project_image_caption ?? '',
       project_image_fit: header.project_image_fit ?? 'cover',
       quote_pricing_type: header.quote_pricing_type ?? null,
+      pricing_mode: header.pricing_mode ?? 'items',
+      manual_total: header.pricing_mode === 'overall'
+        ? (parseFloat(header.manual_total ?? '') || null)
+        : null,
       // New quotes get 'draft'; existing quotes keep their current status
       ...(!savedId && { status: 'draft' as const }),
     }
@@ -491,6 +497,22 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         {/* Terms */}
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
           <h2 className="font-semibold text-gray-700">תנאים</h2>
+          <Field label="אופן תמחור">
+            <select
+              value={header.pricing_mode ?? 'items'}
+              onChange={(e) => setHeaderField('pricing_mode', e.target.value as 'items' | 'overall')}
+              className={inputCls}
+            >
+              {Object.entries(PRICING_MODE_LABELS).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+            {header.pricing_mode === 'overall' && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                מחירי הסעיפים לא יוצגו. המחיר יוזן כסכום כולל להצעה.
+              </p>
+            )}
+          </Field>
           <Field label="סוג הצעת מחיר">
             <select value={header.quote_pricing_type ?? ''}
               onChange={(e) => setHeaderField('quote_pricing_type', e.target.value || null)}
@@ -549,6 +571,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
                 quoteId={savedId}
                 userId={userId}
                 onAutoSave={() => autoSaveForItem(item.tempId)}
+                hidePricing={header.pricing_mode === 'overall' && !item.is_optional}
               />
             ))}
           </div>
@@ -570,6 +593,9 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
           vatEnabled={vatEnabled}
           onVatToggle={handleVatToggle}
           priceAdjustments={header.price_adjustments}
+          pricingMode={header.pricing_mode ?? 'items'}
+          manualTotal={header.manual_total ?? ''}
+          onManualTotalChange={(v) => setHeaderField('manual_total', v)}
         />
 
         {/* Finalize button */}

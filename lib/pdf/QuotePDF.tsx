@@ -11,6 +11,7 @@ import {
 } from '@react-pdf/renderer'
 import { parseNotes } from '@/lib/notesFormat'
 import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
+import { getQuoteBaseTotal } from '@/lib/calculations'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
 // ── Local fonts (bundled in /public/fonts) ────────────────────────────────────
@@ -87,6 +88,8 @@ export interface PdfQuote {
   vat_percentage: number
   price_adjustments?: PriceAdjustment[]
   quote_pricing_type?: string | null
+  pricing_mode?: 'items' | 'overall' | null
+  manual_total?: number | null
 }
 
 export interface PdfCompany {
@@ -900,9 +903,16 @@ function splitItemsForPages(
 
 // ── PDF Document ───────────────────────────────────────────────────────────────
 export function QuotePDF({ quote, items, company, logoUrl, creator, projectImageUrl, projectImageCaption, projectImageFit }: QuotePDFProps) {
+  const isOverallMode = quote.pricing_mode === 'overall'
   const requiredItems = items.filter((i) => !i.is_optional)
   const hasOptional = items.some((i) => i.is_optional)
-  const subtotal = requiredItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+  // Build draft items needed by getQuoteBaseTotal
+  const draftItems = requiredItems.map((i) => ({
+    tempId: '', item_number: 0, description: '', unit: '', notes: '',
+    quantity: String(i.quantity), unit_price: String(i.unit_price),
+    is_optional: false,
+  }))
+  const subtotal = getQuoteBaseTotal(draftItems, quote.pricing_mode, quote.manual_total)
   const adjResult = applyPriceAdjustments(subtotal, parsePriceAdjustments(quote.price_adjustments))
   const adjustedSubtotal = adjResult.adjustedTotal
   const vatAmount = (adjustedSubtotal * quote.vat_percentage) / 100
@@ -1124,14 +1134,17 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
     itemPages.slice(0, i).reduce((acc, p) => acc + p.length, 0)
   )
 
+  // Wide description column used when price columns are hidden (overall pricing mode)
+  const colDescWide = [s.colDesc, { width: '78%' }]
+
   // Shared table header JSX — used in both the main table and the continuation pages
   const tableHeaderRow = (
     <View style={s.tableHeader}>
-      <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>{'סה״כ'}</Text></View>
-      <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>{'מחיר יח׳'}</Text></View>
+      {!isOverallMode && <View style={s.colTotal}><Text style={[s.thText, { textAlign: 'left' }]}>{'סה״כ'}</Text></View>}
+      {!isOverallMode && <View style={s.colPrice}><Text style={[s.thText, { textAlign: 'left' }]}>{'מחיר יח׳'}</Text></View>}
       <View style={s.colQty}><Text style={[s.thText, { textAlign: 'left' }]}>{'כמות'}</Text></View>
       <View style={s.colUnit}><Text style={s.thText}>{'יח׳'}</Text></View>
-      <View style={s.colDesc}><Text style={s.thText}>{'תיאור עבודה'}</Text></View>
+      <View style={isOverallMode ? colDescWide : s.colDesc}><Text style={s.thText}>{'תיאור עבודה'}</Text></View>
       <View style={[s.colNum, { alignItems: 'center' }]}><Text style={s.thText}>{'מס׳'}</Text></View>
     </View>
   )
@@ -1154,11 +1167,11 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
         {/* Keep description row + notes together; never orphan a price row without its description */}
         <View wrap={false}>
           <View style={[s.tableRow, isAlt ? s.tableRowAlt : {}, isOptional ? s.tableRowOptional : {}]}>
-            <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>
-            <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>
+            {!isOverallMode && <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>}
+            {!isOverallMode && <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>}
             <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
             <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
-            <View style={s.colDesc}>
+            <View style={isOverallMode ? colDescWide : s.colDesc}>
               {isOptional && <Text style={s.optionalLabel}>{'אופציה — לא כלול בסה״כ'}</Text>}
               {renderDescriptionBlock(item.description, s.tdText)}
             </View>
@@ -1192,9 +1205,9 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
           <View style={s.summaryRow}>
             <Text style={s.summaryValue}>{fmtCurrency(subtotal)}</Text>
             <Text style={s.summaryLabel}>
-              {adjResult.adjustments.length > 0
-                ? 'סה״כ לפני הנחות/תוספות'
-                : 'סה״כ לפני מע״מ'}
+              {isOverallMode
+                ? 'מחיר כולל להצעה'
+                : (adjResult.adjustments.length > 0 ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ')}
             </Text>
           </View>
           {adjResult.adjustments.map((adj) => (

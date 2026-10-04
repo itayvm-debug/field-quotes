@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
-import { calcSubtotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
+import { getQuoteBaseTotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
 import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
 import {
   STATUS_LABELS, STATUS_COLORS,
@@ -259,7 +259,9 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
               unit_price: String(i.unit_price),
               is_optional: i.is_optional ?? false,
             }))
-            const subtotal = calcSubtotal(draftItems)
+            const pricingMode = (quote.pricing_mode ?? 'items') as 'items' | 'overall'
+            const manualTotal = quote.manual_total as number | null
+            const subtotal = getQuoteBaseTotal(draftItems, pricingMode, manualTotal)
             const { adjustedTotal: adjustedSubtotal } = applyPriceAdjustments(
               subtotal, parsePriceAdjustments(quote.price_adjustments)
             )

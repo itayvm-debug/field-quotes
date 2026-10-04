@@ -13,12 +13,13 @@ interface Props {
   quoteId?: string
   userId?: string
   onAutoSave?: () => Promise<{ quoteId: string; dbId: string } | null>
+  hidePricing?: boolean
 }
 
 const isPredefinedUnit = (unit: string) =>
   (PREDEFINED_UNITS as readonly string[]).includes(unit)
 
-export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAutoSave }: Props) {
+export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAutoSave, hidePricing }: Props) {
   const [autoSaving, setAutoSaving] = useState(false)
   // Track custom mode in local state — can't derive from item.unit alone because
   // unit is '' when custom mode is active but the user hasn't typed yet.
@@ -104,7 +105,7 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
       </div>
 
       {/* Quantity + Price row */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className={`grid gap-3 mb-3 ${hidePricing ? 'grid-cols-1' : 'grid-cols-2'}`}>
         <div>
           <label className="block text-xs text-gray-500 mb-1">כמות</label>
           <input
@@ -116,17 +117,19 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
             placeholder="0"
           />
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">מחיר יחידה (₪)</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={item.unit_price}
-            onChange={(e) => onChange({ unit_price: e.target.value })}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            placeholder="0.00"
-          />
-        </div>
+        {!hidePricing && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">מחיר יחידה (₪)</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={item.unit_price}
+              onChange={(e) => onChange({ unit_price: e.target.value })}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              placeholder="0.00"
+            />
+          </div>
+        )}
       </div>
 
       {/* Notes — rich text editor (stores Markdown, displays formatted HTML) */}
@@ -148,18 +151,20 @@ export function QuoteItemCard({ item, onChange, onRemove, quoteId, userId, onAut
         </label>
       </div>
 
-      {/* Item total */}
-      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-        <span className="text-sm text-gray-500">סה״כ סעיף</span>
-        <div className="text-right">
-          <span className={`font-bold text-lg ${item.is_optional ? 'text-gray-400' : 'text-gray-900'}`}>
-            {formatCurrency(total)}
-          </span>
-          {item.is_optional && (
-            <p className="text-xs text-amber-500 mt-0.5">לא נכלל בסה״כ</p>
-          )}
+      {/* Item total — hidden when pricing is managed as a lump sum */}
+      {!hidePricing && (
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+          <span className="text-sm text-gray-500">סה״כ סעיף</span>
+          <div className="text-right">
+            <span className={`font-bold text-lg ${item.is_optional ? 'text-gray-400' : 'text-gray-900'}`}>
+              {formatCurrency(total)}
+            </span>
+            {item.is_optional && (
+              <p className="text-xs text-amber-500 mt-0.5">לא נכלל בסה״כ</p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Images */}
       <div className="mt-3 pt-3 border-t border-gray-100">

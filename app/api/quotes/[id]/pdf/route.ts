@@ -164,6 +164,10 @@ export async function GET(
         price_adjustments: parsePriceAdjustments((quote as any).price_adjustments),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         quote_pricing_type: (quote as any).quote_pricing_type ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pricing_mode: ((quote as any).pricing_mode ?? 'items') as 'items' | 'overall',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        manual_total: (quote as any).manual_total as number | null,
       },
       items,
       company: {

@@ -1,21 +1,29 @@
 'use client'
 
-import { calcSubtotal, calcVat, calcTotal, formatCurrency } from '@/lib/calculations'
+import { getQuoteBaseTotal, calcVat, calcTotal, formatCurrency } from '@/lib/calculations'
 import { applyPriceAdjustments } from '@/lib/priceAdjustments'
 import type { QuoteItemDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
 const VAT_RATE = 18
 
+const noWheelInput =
+  'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+
 interface Props {
   items: QuoteItemDraft[]
   vatEnabled: boolean
   onVatToggle?: (enabled: boolean) => void
   priceAdjustments?: PriceAdjustment[]
+  pricingMode?: 'items' | 'overall'
+  manualTotal?: string
+  onManualTotalChange?: (v: string) => void
 }
 
-export function QuoteSummary({ items, vatEnabled, onVatToggle, priceAdjustments }: Props) {
-  const subtotal = calcSubtotal(items)
+export function QuoteSummary({ items, vatEnabled, onVatToggle, priceAdjustments, pricingMode, manualTotal, onManualTotalChange }: Props) {
+  const isOverall = pricingMode === 'overall'
+  const manualTotalNum = isOverall ? (parseFloat(manualTotal ?? '') || 0) : 0
+  const subtotal = getQuoteBaseTotal(items, pricingMode, manualTotalNum)
   const adjResult = applyPriceAdjustments(subtotal, priceAdjustments ?? [])
   const adjustedSubtotal = adjResult.adjustedTotal
   const vatAmount = calcVat(adjustedSubtotal, vatEnabled ? VAT_RATE : 0)
@@ -28,12 +36,27 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle, priceAdjustments 
       <h3 className="font-semibold text-gray-700 mb-4">סיכום כספי</h3>
 
       <div className="space-y-2.5">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">
-            {hasAdjustments ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ'}
-          </span>
-          <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
-        </div>
+        {isOverall ? (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">מחיר כולל להצעה (₪)</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={manualTotal ?? ''}
+              onChange={(e) => onManualTotalChange?.(e.target.value)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+              className={noWheelInput}
+              placeholder="0.00"
+            />
+          </div>
+        ) : (
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">
+              {hasAdjustments ? 'סה״כ לפני הנחות/תוספות' : 'סה״כ לפני מע״מ'}
+            </span>
+            <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
+          </div>
+        )}
 
         {adjResult.adjustments.map((adj) => (
           <div key={adj.id} className="flex justify-between items-center">

@@ -20,6 +20,20 @@ export function calcTotal(subtotal: number, vatAmount: number): number {
   return Math.round((subtotal + vatAmount) * 100) / 100
 }
 
+// Single source of truth for the base subtotal (before adjustments / VAT).
+// In 'items' mode: sum of required item totals (existing behaviour).
+// In 'overall' mode: the manually-entered lump sum.
+export function getQuoteBaseTotal(
+  items: QuoteItemDraft[],
+  pricingMode: 'items' | 'overall' | undefined | null,
+  manualTotal: number | null | undefined
+): number {
+  if (pricingMode === 'overall') {
+    return typeof manualTotal === 'number' && !isNaN(manualTotal) ? manualTotal : 0
+  }
+  return calcSubtotal(items)
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('he-IL', {
     style: 'currency',

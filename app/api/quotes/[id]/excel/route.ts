@@ -221,6 +221,12 @@ export async function GET(
     (a: any, b: any) => (a.item_number ?? 0) - (b.item_number ?? 0)
   )
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pricingMode = ((quote as any).pricing_mode ?? 'items') as 'items' | 'overall'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const manualTotal = (quote as any).manual_total as number | null
+  const isOverall   = pricingMode === 'overall'
+
   // Download company logo and compute display size preserving aspect ratio
   let logoBuf: Buffer | null = null
   let logoExt: 'jpeg' | 'png' | 'gif' = 'png'
@@ -271,10 +277,12 @@ export async function GET(
   // ── Price calculations ───────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const requiredItems = rawItems.filter((i: any) => !i.is_optional)
-  const subtotal = requiredItems.reduce(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (s: number, i: any) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0
-  )
+  const subtotal = isOverall
+    ? (typeof manualTotal === 'number' && !isNaN(manualTotal) ? manualTotal : 0)
+    : requiredItems.reduce(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (s: number, i: any) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0
+    )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adjResult = applyPriceAdjustments(subtotal, parsePriceAdjustments((quote as any).price_adjustments))
   const adjustedSubtotal = adjResult.adjustedTotal
@@ -307,8 +315,8 @@ export async function GET(
   const C_QTY   = 5   // E  qty
   const C_PRICE = 6   // F  unit price
   const C_TOTAL = 7   // G  total
-  const C_NOTES = 8   // H  notes
-  const C_IMG0  = 9   // I  first image column
+  const C_NOTES = isOverall ? 6 : 8   // notes (col F in overall, H in items)
+  const C_IMG0  = isOverall ? 7 : 9   // first image column
   const LAST_COL = maxImgCols > 0 ? C_IMG0 + maxImgCols - 1 : C_NOTES
 
   const ws = wb.addWorksheet('הצעת מחיר', {
@@ -321,12 +329,14 @@ export async function GET(
   const colDefs: any[] = [
     { width: 7  },  // A: item#
     { width: 20 },  // B: label / optional
-    { width: 45 },  // C: description / value
+    { width: isOverall ? 55 : 45 },  // C: description (wider when no price cols)
     { width: 10 },  // D: unit
     { width: 9  },  // E: qty
-    { width: 14 },  // F: unit price
-    { width: 14 },  // G: total
-    { width: 35 },  // H: notes
+    ...(isOverall ? [] : [
+      { width: 14 },  // F: unit price (items mode only)
+      { width: 14 },  // G: total (items mode only)
+    ]),
+    { width: 35 },  // notes
   ]
   for (let i = 0; i < maxImgCols; i++) colDefs.push({ width: 20 })
   ws.columns = colDefs
@@ -475,8 +485,10 @@ export async function GET(
     { col: C_DESC,  text: 'תיאור עבודה' },
     { col: C_UNIT,  text: 'יח\' מידה' },
     { col: C_QTY,   text: 'כמות' },
-    { col: C_PRICE, text: 'מחיר יחידה' },
-    { col: C_TOTAL, text: 'סה"כ' },
+    ...(!isOverall ? [
+      { col: C_PRICE, text: 'מחיר יחידה' },
+      { col: C_TOTAL, text: 'סה"כ' },
+    ] : []),
     { col: C_NOTES, text: 'הערות' },
   ]
   for (let i = 0; i < maxImgCols; i++) {
@@ -500,6 +512,7 @@ export async function GET(
   }
 
   // Item rows
+  const descColW = isOverall ? 55 : COL_W_DESC
   const firstItemRow = rowNum
   for (const { item, imgs } of itemsWithImgs) {
     const isOpt   = item.is_optional ?? false
@@ -509,7 +522,7 @@ export async function GET(
     const bgArgb  = isOpt ? CLR.optional : CLR.white
 
     // Dynamic row height: max of description height, notes height, image height
-    const descH  = LINE_PAD + estimateWrappedLines(item.description ?? '', COL_W_DESC)  * LINE_PT
+    const descH  = LINE_PAD + estimateWrappedLines(item.description ?? '', descColW)  * LINE_PT
     const npt    = notesPlainText(item.notes)
     const notesH = npt ? LINE_PAD + estimateWrappedLines(npt, COL_W_NOTES) * LINE_PT : 0
     const hasImgs = imgs.some(Boolean)
@@ -523,8 +536,10 @@ export async function GET(
       { col: C_DESC,  val: item.description, wrap: true },
       { col: C_UNIT,  val: item.unit },
       { col: C_QTY,   val: qty,   numFmt: QTY_FMT },
-      { col: C_PRICE, val: price, numFmt: ILS_FMT },
-      { col: C_TOTAL, val: { formula: `=E${rowNum}*F${rowNum}`, result: itemTotal }, numFmt: ILS_FMT },
+      ...(!isOverall ? [
+        { col: C_PRICE, val: price, numFmt: ILS_FMT },
+        { col: C_TOTAL, val: { formula: `=E${rowNum}*F${rowNum}`, result: itemTotal } as ExcelJS.CellValue, numFmt: ILS_FMT },
+      ] : []),
       { col: C_NOTES, val: notesToExcelValue(item.notes), wrap: true },
     ]
 
@@ -568,10 +583,15 @@ export async function GET(
   // ── FINANCIAL SUMMARY ─────────────────────────────────────────────────────
   sectionHeader('סיכום כספי')
 
+  // In overall mode there are no price/total cols; amount sits in C_NOTES (col 6).
+  const SUM_AMT_START = isOverall ? C_NOTES : C_PRICE
+  const SUM_AMT_END   = isOverall ? C_NOTES : C_TOTAL
+  const SUM_FILL_COL  = isOverall ? C_IMG0  : C_NOTES
+
   // Helper: summary row (label in C-E merged, amount in F-G merged)
   function summaryRow(label: string, amount: number | null, bold = false, bg = CLR.summaryBg) {
     mergeR(rowNum, C_DESC, C_QTY)
-    mergeR(rowNum, C_PRICE, C_TOTAL)
+    mergeR(rowNum, SUM_AMT_START, SUM_AMT_END)
     mergeR(rowNum, 1, C_LBL)
 
     const lc = ws.getCell(rowNum, C_DESC)
@@ -581,7 +601,7 @@ export async function GET(
     lc.alignment = rtlMid()
     lc.border = thinBorders()
 
-    const ac = ws.getCell(rowNum, C_PRICE)
+    const ac = ws.getCell(rowNum, SUM_AMT_START)
     ac.value = amount
     ac.font  = { name: 'Arial', size: 10, bold, color: { argb: CLR.bodyText } }
     ac.fill  = solidFill(bg)
@@ -589,8 +609,8 @@ export async function GET(
     ac.border = thinBorders()
     if (amount !== null) ac.numFmt = ILS_FMT
 
-    // Fill remaining cols
-    for (let col = C_NOTES; col <= LAST_COL; col++) {
+    // Fill remaining cols (image cols)
+    for (let col = SUM_FILL_COL; col <= LAST_COL; col++) {
       const c = ws.getCell(rowNum, col)
       c.fill   = solidFill(bg)
       c.border = thinBorders()
@@ -599,7 +619,7 @@ export async function GET(
     rowNum++
   }
 
-  summaryRow('סה"כ לפני הנחות/תוספות', subtotal)
+  summaryRow(isOverall ? 'מחיר כולל להצעה' : 'סה"כ לפני הנחות/תוספות', subtotal)
 
   for (const adj of adjResult.adjustments) {
     const sign   = adj.type === 'addition' ? '+' : '-'

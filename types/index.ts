@@ -58,6 +58,9 @@ export interface Quote {
   overpayment_note?: string
   // Price adjustments (added in migration 013)
   price_adjustments?: PriceAdjustment[]
+  // Pricing mode (added in migration 016)
+  pricing_mode?: 'items' | 'overall'
+  manual_total?: number | null
 }
 
 export interface QuoteWithItems extends Quote {
@@ -116,6 +119,8 @@ export interface QuoteHeaderDraft {
   project_image_caption?: string
   project_image_fit?: 'cover' | 'contain'
   quote_pricing_type?: string | null
+  pricing_mode?: 'items' | 'overall'
+  manual_total?: string
 }
 
 export const QUOTE_PRICING_TYPE_LABELS: Record<string, string> = {
@@ -123,6 +128,11 @@ export const QUOTE_PRICING_TYPE_LABELS: Record<string, string> = {
   measured: 'הצעה למדידה',
   budgetary: 'הצעת אומדן / תקציבית',
   daywork: 'עבודה יומית / רג׳י',
+}
+
+export const PRICING_MODE_LABELS: Record<'items' | 'overall', string> = {
+  items: 'לפי סעיפים',
+  overall: 'מחיר כולל להצעה',
 }
 
 export const PREDEFINED_UNITS = [
