@@ -1,7 +1,7 @@
 'use client'
 
 import { getQuoteBaseTotal, calcVat, calcTotal, formatCurrency } from '@/lib/calculations'
-import { applyPriceAdjustments } from '@/lib/priceAdjustments'
+import { applyPriceAdjustments, adjustmentDisplayLabel } from '@/lib/priceAdjustments'
 import type { QuoteItemDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
@@ -64,7 +64,7 @@ export function QuoteSummary({ items, vatEnabled, onVatToggle, priceAdjustments,
               {adj.type === 'addition' ? '+' : '-'}{formatCurrency(adj.amount)}
             </span>
             <span className="text-sm text-gray-500">
-              {adj.name} {adj.percentage}%
+              {adjustmentDisplayLabel(adj)}
             </span>
           </div>
         ))}

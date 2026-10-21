@@ -2,7 +2,10 @@ export interface PriceAdjustment {
   id: string
   type: 'addition' | 'discount'
   name: string
-  percentage: number
+  // valueType defaults to 'percentage' when absent (backward compat with old records)
+  valueType?: 'percentage' | 'fixed'
+  percentage?: number
+  fixedAmount?: number
 }
 
 export interface CalculatedAdjustment extends PriceAdjustment {
@@ -20,8 +23,16 @@ export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-// Each adjustment is applied to the running total of the previous step.
-// Example: 100 +9% → 109, then 109 -5% → 103.55 (not 100 +9% -5% = 104).
+// Returns the label to show for an adjustment in summaries (UI, PDF, view page).
+// Percentage: "תוספת אילת 9%"  Fixed: "תוספת קבועה"
+export function adjustmentDisplayLabel(adj: PriceAdjustment): string {
+  if ((adj.valueType ?? 'percentage') === 'fixed') return adj.name
+  return `${adj.name} ${adj.percentage ?? 0}%`
+}
+
+// Each adjustment is applied sequentially to the running total.
+// Fixed adjustments use their fixedAmount directly; percentage adjustments
+// compute from the current runningTotal.
 export function applyPriceAdjustments(
   baseAmount: number,
   adjustments: PriceAdjustment[]
@@ -37,7 +48,11 @@ export function applyPriceAdjustments(
   let runningTotal = roundMoney(baseAmount)
 
   const calculatedAdjustments: CalculatedAdjustment[] = adjustments.map((adjustment) => {
-    const amount = roundMoney(runningTotal * (adjustment.percentage / 100))
+    const effectiveValueType = adjustment.valueType ?? 'percentage'
+    const amount =
+      effectiveValueType === 'fixed'
+        ? roundMoney(adjustment.fixedAmount ?? 0)
+        : roundMoney(runningTotal * ((adjustment.percentage ?? 0) / 100))
 
     if (adjustment.type === 'addition') {
       runningTotal = roundMoney(runningTotal + amount)
@@ -57,13 +72,15 @@ export function applyPriceAdjustments(
 
 export function parsePriceAdjustments(raw: unknown): PriceAdjustment[] {
   if (!Array.isArray(raw)) return []
-  return raw.filter(
-    (a): a is PriceAdjustment =>
-      a !== null &&
-      typeof a === 'object' &&
-      (a.type === 'addition' || a.type === 'discount') &&
-      typeof a.name === 'string' &&
-      typeof a.percentage === 'number' &&
-      typeof a.id === 'string'
-  )
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return raw.filter((a): a is PriceAdjustment => {
+    if (a === null || typeof a !== 'object') return false
+    if (a.type !== 'addition' && a.type !== 'discount') return false
+    if (typeof a.name !== 'string') return false
+    if (typeof a.id !== 'string') return false
+    // Accept old records (percentage only) and new records (percentage or fixed)
+    const hasPercentage = typeof a.percentage === 'number'
+    const hasFixed = a.valueType === 'fixed' && typeof a.fixedAmount === 'number'
+    return hasPercentage || hasFixed
+  })
 }

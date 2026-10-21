@@ -10,7 +10,7 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer'
 import { parseNotes } from '@/lib/notesFormat'
-import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
+import { applyPriceAdjustments, parsePriceAdjustments, adjustmentDisplayLabel } from '@/lib/priceAdjustments'
 import { getQuoteBaseTotal } from '@/lib/calculations'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
@@ -1215,7 +1215,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
               <Text style={[s.summaryValue, { color: adj.type === 'addition' ? '#16a34a' : '#dc2626' }]}>
                 {adj.type === 'addition' ? '+' : '-'}{fmtCurrency(adj.amount)}
               </Text>
-              <Text style={s.summaryLabel}>{adj.name} {adj.percentage}%</Text>
+              <Text style={s.summaryLabel}>{adjustmentDisplayLabel(adj)}</Text>
             </View>
           ))}
           {adjResult.adjustments.length > 0 && (

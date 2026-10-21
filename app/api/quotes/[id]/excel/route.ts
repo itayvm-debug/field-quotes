@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { createClient } from '@/lib/supabase/server'
-import { parsePriceAdjustments, applyPriceAdjustments } from '@/lib/priceAdjustments'
+import { parsePriceAdjustments, applyPriceAdjustments, adjustmentDisplayLabel } from '@/lib/priceAdjustments'
 import { calcVat, calcTotal } from '@/lib/calculations'
 import { QUOTE_PRICING_TYPE_LABELS, STATUS_LABELS } from '@/types'
 import { parseNotes } from '@/lib/notesFormat'
@@ -622,8 +622,10 @@ export async function GET(
   summaryRow(isOverall ? 'מחיר כולל להצעה' : 'סה"כ לפני הנחות/תוספות', subtotal)
 
   for (const adj of adjResult.adjustments) {
-    const sign   = adj.type === 'addition' ? '+' : '-'
-    const label  = `${adj.name} (${sign}${adj.percentage}%)`
+    const isFixed = (adj.valueType ?? 'percentage') === 'fixed'
+    const label   = isFixed
+      ? `${adj.name} (סכום קבוע)`
+      : `${adj.name} (${adj.type === 'addition' ? '+' : '-'}${adj.percentage ?? 0}%)`
     summaryRow(label, adj.type === 'addition' ? adj.amount : -adj.amount)
   }
 

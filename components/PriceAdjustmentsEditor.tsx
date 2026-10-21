@@ -32,6 +32,7 @@ interface RowProps {
 function AdjustmentRow({ adjustment, isFirst, isLast, onChange, onRemove, onMoveUp, onMoveDown }: RowProps) {
   const presets = adjustment.type === 'addition' ? ADDITION_PRESETS : DISCOUNT_PRESETS
   const isCustom = !presets.includes(adjustment.name)
+  const valueType = adjustment.valueType ?? 'percentage'
 
   const handleTypeChange = (type: 'addition' | 'discount') => {
     const newPresets = type === 'addition' ? ADDITION_PRESETS : DISCOUNT_PRESETS
@@ -40,6 +41,14 @@ function AdjustmentRow({ adjustment, isFirst, isLast, onChange, onRemove, onMove
 
   const handlePresetChange = (value: string) => {
     onChange({ name: value === '__custom__' ? '' : value })
+  }
+
+  const handleValueTypeChange = (vt: 'percentage' | 'fixed') => {
+    if (vt === 'fixed') {
+      onChange({ valueType: 'fixed', percentage: undefined })
+    } else {
+      onChange({ valueType: 'percentage', fixedAmount: undefined })
+    }
   }
 
   return (
@@ -118,20 +127,67 @@ function AdjustmentRow({ adjustment, isFirst, isLast, onChange, onRemove, onMove
       )}
 
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500 shrink-0">אחוז</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={adjustment.percentage === 0 ? '' : adjustment.percentage}
-          onChange={(e) => {
-            const val = parseFloat(e.target.value)
-            onChange({ percentage: isNaN(val) || val < 0 ? 0 : val })
-          }}
-          placeholder="0"
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-left"
-          style={{ direction: 'ltr' }}
-        />
-        <span className="text-xs text-gray-400 shrink-0">%</span>
+        {/* % / ₪ toggle */}
+        <div className="flex rounded-lg overflow-hidden border border-gray-200 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleValueTypeChange('percentage')}
+            className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              valueType === 'percentage'
+                ? 'bg-orange-500 text-white'
+                : 'bg-white text-gray-400 hover:bg-gray-50'
+            }`}
+          >
+            %
+          </button>
+          <button
+            type="button"
+            onClick={() => handleValueTypeChange('fixed')}
+            className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              valueType === 'fixed'
+                ? 'bg-orange-500 text-white'
+                : 'bg-white text-gray-400 hover:bg-gray-50'
+            }`}
+          >
+            ₪
+          </button>
+        </div>
+
+        {valueType === 'percentage' ? (
+          <>
+            <span className="text-xs text-gray-500 shrink-0">אחוז</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={(adjustment.percentage ?? 0) === 0 ? '' : adjustment.percentage}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value)
+                onChange({ percentage: isNaN(val) || val < 0 ? 0 : val })
+              }}
+              placeholder="0"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-left"
+              style={{ direction: 'ltr' }}
+            />
+            <span className="text-xs text-gray-400 shrink-0">%</span>
+          </>
+        ) : (
+          <>
+            <span className="text-xs text-gray-500 shrink-0">סכום</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={(adjustment.fixedAmount ?? 0) === 0 ? '' : adjustment.fixedAmount}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value)
+                onChange({ fixedAmount: isNaN(val) || val < 0 ? 0 : val })
+              }}
+              placeholder="0"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-left"
+              style={{ direction: 'ltr' }}
+            />
+            <span className="text-xs text-gray-400 shrink-0">₪</span>
+          </>
+        )}
       </div>
     </div>
   )
@@ -145,6 +201,7 @@ export function PriceAdjustmentsEditor({ adjustments, onChange }: Props) {
         id: crypto.randomUUID(),
         type: 'addition',
         name: ADDITION_PRESETS[0],
+        valueType: 'percentage',
         percentage: 0,
       },
     ])

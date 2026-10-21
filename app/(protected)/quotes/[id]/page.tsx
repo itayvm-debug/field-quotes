@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getQuoteBaseTotal, calcVat, calcTotal, calcItemTotal, formatCurrency, formatDate } from '@/lib/calculations'
-import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
+import { applyPriceAdjustments, parsePriceAdjustments, adjustmentDisplayLabel } from '@/lib/priceAdjustments'
 import { STATUS_LABELS, STATUS_COLORS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS, QUOTE_PRICING_TYPE_LABELS, type QuoteStatus, type QuoteItemDraft, type PaymentStatus } from '@/types'
 import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
 import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
@@ -306,7 +306,7 @@ export default async function QuoteViewPage({ params }: Props) {
                 <span className={adj.type === 'addition' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
                   {adj.type === 'addition' ? '+' : '-'}{formatCurrency(adj.amount)}
                 </span>
-                <span className="text-gray-500">{adj.name} {adj.percentage}%</span>
+                <span className="text-gray-500">{adjustmentDisplayLabel(adj)}</span>
               </div>
             ))}
             {adjResult.adjustments.length > 0 && (
