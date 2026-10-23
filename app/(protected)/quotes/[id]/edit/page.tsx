@@ -114,6 +114,8 @@ export default async function EditQuotePage({ params }: Props) {
       logoUrl={logoUrl}
       initialHeader={header}
       initialItems={items}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      revisionNumber={(quote as any).revision_number ?? 0}
     />
   )
 }

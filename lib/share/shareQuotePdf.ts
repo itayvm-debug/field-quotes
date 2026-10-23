@@ -12,10 +12,16 @@ export type ShareResult =
 
 // Single source of truth for PDF filenames — used by the API route (Content-Disposition),
 // share helper (File object), and download helper.
-// Format: natan-valdman-price-quote-{quoteNumber}.pdf
-export function buildQuotePdfFilename(quoteNumber: string | null | undefined): string {
+// Format: natan-valdman-price-quote-{quoteNumber}-ver{nn}.pdf
+export function buildQuotePdfFilename(
+  quoteNumber: string | null | undefined,
+  revisionNumber?: number | null,
+): string {
   const num = quoteNumber ? quoteNumber.replace(/[/\\:*?"<>|]/g, '').trim().slice(0, 60) : ''
-  return num ? `natan-valdman-price-quote-${num}.pdf` : 'natan-valdman-price-quote.pdf'
+  const ver = `ver${String(revisionNumber ?? 0).padStart(2, '0')}`
+  return num
+    ? `natan-valdman-price-quote-${num}-${ver}.pdf`
+    : `natan-valdman-price-quote-${ver}.pdf`
 }
 
 // Step 1 — fetch PDF and build File. Call this when user first taps the share button.
@@ -25,6 +31,7 @@ export async function prepareQuotePdfFile(
   quoteNumber: string | null | undefined,
   clientName: string | null | undefined,
   companyName: string,
+  revisionNumber?: number | null,
 ): Promise<PreparedShare> {
   const res = await fetch(`/api/quotes/${quoteId}/pdf`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -40,7 +47,7 @@ export async function prepareQuotePdfFile(
   }
 
   const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' })
-  const filename = buildQuotePdfFilename(quoteNumber)
+  const filename = buildQuotePdfFilename(quoteNumber, revisionNumber)
   const file = new File([pdfBlob], filename, { type: 'application/pdf' })
 
   // Diagnostics — intentionally not gated by NODE_ENV so they appear in production Safari console.
@@ -82,10 +89,10 @@ export function sharePreparedFile(prepared: PreparedShare): Promise<ShareResult>
 }
 
 // Download via direct API URL — never creates blob: URLs
-export function triggerApiDownload(quoteId: string, quoteNumber?: string | null): void {
+export function triggerApiDownload(quoteId: string, quoteNumber?: string | null, revisionNumber?: number | null): void {
   const a = document.createElement('a')
   a.href = `/api/quotes/${quoteId}/pdf`
-  a.download = buildQuotePdfFilename(quoteNumber)
+  a.download = buildQuotePdfFilename(quoteNumber, revisionNumber)
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

@@ -27,6 +27,7 @@ const REJECT_REASONS = [
 interface Props {
   quoteId: string
   quoteNumber: string | null
+  revisionNumber?: number | null
   clientName: string
   totalFormatted: string
   totalAmount: number
@@ -40,7 +41,7 @@ interface Props {
 }
 
 export function QuoteCardActions({
-  quoteId, quoteNumber, clientName, totalFormatted, totalAmount,
+  quoteId, quoteNumber, revisionNumber, clientName, totalFormatted, totalAmount,
   currentStatus, userRole, userId, companyName,
   initialPaymentStatus, initialPaidAmount, initialStatusNote = '',
 }: Props) {
@@ -289,7 +290,7 @@ export function QuoteCardActions({
     e.preventDefault()
     setShareState('preparing')
     try {
-      const p = await prepareQuotePdfFile(quoteId, quoteNumber, clientName, companyName)
+      const p = await prepareQuotePdfFile(quoteId, quoteNumber, clientName, companyName, revisionNumber)
       setPreparedShare(p)
       setShareState('ready')
     } catch {

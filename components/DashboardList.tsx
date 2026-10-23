@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { getQuoteBaseTotal, calcVat, calcTotal, formatCurrency, formatDate } from '@/lib/calculations'
+import { formatRevisionNumber } from '@/lib/revisionNumber'
 import { applyPriceAdjustments, parsePriceAdjustments } from '@/lib/priceAdjustments'
 import {
   STATUS_LABELS, STATUS_COLORS,
@@ -314,6 +315,10 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
                         <span className="text-xs font-mono text-gray-400">
                           {quote.quote_number ?? '—'}
                         </span>
+                        <span className="text-xs font-mono text-gray-300">
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                          {formatRevisionNumber((quote as any).revision_number)}
+                        </span>
                       </div>
                       <p className="font-semibold text-gray-900 truncate">
                         {quote.client_name || '(ללא שם לקוח)'}
@@ -375,6 +380,8 @@ export function DashboardList({ quotes, statusFilter, userRole, userId, companyN
                 <QuoteCardActions
                   quoteId={quote.id}
                   quoteNumber={quote.quote_number}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  revisionNumber={(quote as any).revision_number ?? 0}
                   clientName={quote.client_name}
                   totalFormatted={totalFormatted}
                   totalAmount={total}

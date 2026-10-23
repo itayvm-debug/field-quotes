@@ -11,6 +11,7 @@ import { ProjectImage } from './ProjectImage'
 import { ReorderItemsModal } from './ReorderItemsModal'
 import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, PRICING_MODE_LABELS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
+import { formatRevisionNumber } from '@/lib/revisionNumber'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -19,6 +20,7 @@ interface Props {
   logoUrl?: string | null
   initialHeader?: Partial<QuoteHeaderDraft>
   initialItems?: QuoteItemDraft[]
+  revisionNumber?: number
 }
 
 const TERMS_LIST = PAYMENT_TERMS_OPTIONS as unknown as string[]
@@ -64,7 +66,7 @@ interface SaveResult {
   tempToDbId: Map<string, string>
 }
 
-export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initialItems }: Props) {
+export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initialItems, revisionNumber }: Props) {
   const router = useRouter()
 
   const [saving, setSaving] = useState(false)
@@ -76,6 +78,10 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showReorder, setShowReorder] = useState(false)
+
+  const [currentRevision, setCurrentRevision] = useState(revisionNumber ?? 0)
+  const [showRevisionConfirm, setShowRevisionConfirm] = useState(false)
+  const [bumping, setBumping] = useState(false)
 
   const [header, setHeader] = useState<QuoteHeaderDraft>({ ...defaultHeader(), ...initialHeader })
   const [items, setItems] = useState<QuoteItemDraft[]>(initialItems ?? [])
@@ -161,7 +167,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
   }
 
   // ── Core save (no UI side effects) ──────────────────────────────────────────
-  const performSave = async (): Promise<SaveResult | null> => {
+  const performSave = async (extraPayload?: Record<string, unknown>): Promise<SaveResult | null> => {
     const supabase = createClient()
     const headerPayload = {
       client_name: header.client_name,
@@ -184,6 +190,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         : null,
       // New quotes get 'draft'; existing quotes keep their current status
       ...(!savedId && { status: 'draft' as const }),
+      ...(extraPayload ?? {}),
     }
 
     let currentId = savedId
@@ -368,6 +375,42 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     router.push('/dashboard')
   }
 
+  // ── Bump revision ─────────────────────────────────────────────────────────────
+  const handleBumpRevision = async () => {
+    if (bumping) return
+    setBumping(true)
+    setSaveError(null)
+    const today = new Date().toISOString().split('T')[0]
+    const origDate = header.quote_date ?? today
+    let newValidUntil: string
+    const validUntil = header.valid_until
+    if (validUntil && validUntil > origDate) {
+      const days = Math.round(
+        (new Date(validUntil).getTime() - new Date(origDate).getTime()) / 86_400_000
+      )
+      const d = new Date(today)
+      d.setDate(d.getDate() + days)
+      newValidUntil = d.toISOString().split('T')[0]
+    } else {
+      const d = new Date(today)
+      d.setDate(d.getDate() + 30)
+      newValidUntil = d.toISOString().split('T')[0]
+    }
+    const result = await performSave({
+      revision_number: currentRevision + 1,
+      quote_date: today,
+      valid_until: newValidUntil,
+    })
+    setBumping(false)
+    setShowRevisionConfirm(false)
+    if (result) {
+      setCurrentRevision((r) => r + 1)
+      setHeader((h) => ({ ...h, quote_date: today, valid_until: newValidUntil }))
+    } else {
+      setSaveError('שגיאה בהפקת מהדורה — נסה שוב')
+    }
+  }
+
   const paymentTermsSelectValue = paymentTermsIsCustom ? '__custom__' : header.payment_terms
 
   return (
@@ -393,20 +436,39 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
             )}
           </div>
           <div className="flex flex-col items-center">
-            <h1 className="font-bold text-gray-900 text-sm">
-              {mode === 'create' ? 'הצעה חדשה' : 'עריכת הצעה'}
-            </h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="font-bold text-gray-900 text-sm">
+                {mode === 'create' ? 'הצעה חדשה' : 'עריכת הצעה'}
+              </h1>
+              {mode === 'edit' && (
+                <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                  {formatRevisionNumber(currentRevision)}
+                </span>
+              )}
+            </div>
             {autoSaving && (
               <span className="text-xs text-gray-400">שמירה אוטומטית...</span>
             )}
           </div>
-          <button
-            onClick={saveDraft}
-            disabled={saving || saveSuccess || autoSaving}
-            className="bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 active:bg-orange-700 transition-colors"
-          >
-            {saving ? 'שומר...' : saveSuccess ? '✓ נשמר' : 'שמור'}
-          </button>
+          <div className="flex items-center gap-2">
+            {mode === 'edit' && savedId && (
+              <button
+                type="button"
+                onClick={() => setShowRevisionConfirm(true)}
+                disabled={saving || bumping || autoSaving}
+                className="text-orange-600 border border-orange-300 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50 active:bg-orange-50 transition-colors"
+              >
+                מהדורה חדשה
+              </button>
+            )}
+            <button
+              onClick={saveDraft}
+              disabled={saving || saveSuccess || autoSaving || bumping}
+              className="bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 active:bg-orange-700 transition-colors"
+            >
+              {saving ? 'שומר...' : saveSuccess ? '✓ נשמר' : 'שמור'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -643,6 +705,37 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         onSave={handleReorderSave}
         onClose={() => setShowReorder(false)}
       />
+    )}
+
+    {showRevisionConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-4 text-right">
+          <h2 className="font-bold text-gray-900 text-base">הפקת מהדורה חדשה</h2>
+          <p className="text-sm text-gray-700">
+            כעת מופקת מהדורה{' '}
+            <span className="font-mono font-semibold">{formatRevisionNumber(currentRevision + 1)}</span>.
+            {' '}המהדורה הקודמת לא תישמר במערכת. להמשיך?
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setShowRevisionConfirm(false)}
+              disabled={bumping}
+              className="py-3 border border-gray-200 rounded-xl text-gray-600 font-medium text-sm bg-white disabled:opacity-50"
+            >
+              בטל
+            </button>
+            <button
+              type="button"
+              onClick={handleBumpRevision}
+              disabled={bumping}
+              className="py-3 bg-orange-600 text-white rounded-xl font-medium text-sm disabled:opacity-50"
+            >
+              {bumping ? 'מפיק...' : 'הפק מהדורה'}
+            </button>
+          </div>
+        </div>
+      </div>
     )}
     </>
   )

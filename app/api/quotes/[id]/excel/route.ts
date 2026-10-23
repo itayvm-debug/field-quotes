@@ -5,6 +5,7 @@ import { parsePriceAdjustments, applyPriceAdjustments, adjustmentDisplayLabel } 
 import { calcVat, calcTotal } from '@/lib/calculations'
 import { QUOTE_PRICING_TYPE_LABELS, STATUS_LABELS } from '@/types'
 import { parseNotes } from '@/lib/notesFormat'
+import { formatRevisionNumber } from '@/lib/revisionNumber'
 
 export const dynamic = 'force-dynamic'
 
@@ -426,8 +427,11 @@ export async function GET(
   emptyRow()
 
   // Quote details
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const revisionNumber = ((quote as any).revision_number ?? 0) as number
   sectionHeader('פרטי ההצעה')
   infoRow('מספר הצעה:', quote.quote_number)
+  infoRow('מהדורה:', formatRevisionNumber(revisionNumber))
   infoRow('סטטוס:', STATUS_LABELS[quote.status as keyof typeof STATUS_LABELS] ?? quote.status)
   infoRow('תאריך הצעה:', fmtDate(quote.quote_date))
   infoRow('בתוקף עד:', fmtDate(quote.valid_until))
@@ -695,9 +699,10 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buf = Buffer.from(await wb.xlsx.writeBuffer() as any)
     const num = (quote.quote_number ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+    const ver = `ver${String(revisionNumber).padStart(2, '0')}`
     const filename = num
-      ? `natan-valdman-price-quote-${num}.xlsx`
-      : 'natan-valdman-price-quote.xlsx'
+      ? `natan-valdman-price-quote-${num}-${ver}.xlsx`
+      : `natan-valdman-price-quote-${ver}.xlsx`
 
     return new Response(buf, {
       headers: {

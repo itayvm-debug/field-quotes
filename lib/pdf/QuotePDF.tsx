@@ -11,6 +11,7 @@ import {
 } from '@react-pdf/renderer'
 import { parseNotes } from '@/lib/notesFormat'
 import { applyPriceAdjustments, parsePriceAdjustments, adjustmentDisplayLabel } from '@/lib/priceAdjustments'
+import { formatRevisionNumber } from '@/lib/revisionNumber'
 import { getQuoteBaseTotal } from '@/lib/calculations'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 
@@ -76,6 +77,7 @@ export interface PdfItem {
 
 export interface PdfQuote {
   quote_number: string | null
+  revision_number?: number | null
   status: string
   client_name: string
   client_address: string
@@ -1324,7 +1326,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
       <View style={[s.continuationBand, { marginHorizontal: 0 }]}>
         <View style={s.continuationBandLeft}>
           <Text style={s.continuationQuoteTitle}>{'הצעת מחיר'}</Text>
-          <Text style={s.continuationQuoteNum}>{quote.quote_number ?? '—'}</Text>
+          <Text style={s.continuationQuoteNum}>{`${quote.quote_number ?? '—'}  ·  ${formatRevisionNumber(quote.revision_number)}`}</Text>
         </View>
         <View style={s.continuationBandRight}>
           <Text style={s.continuationCompanyName}>{company.company_name}</Text>
@@ -1365,7 +1367,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
         <View style={s.titleBar}>
           <View style={s.quoteMeta}>
-            <Text style={s.quoteNumber}>{quote.quote_number ?? '—'}</Text>
+            <Text style={s.quoteNumber}>{`${quote.quote_number ?? '—'}  ·  ${formatRevisionNumber(quote.revision_number)}`}</Text>
             {quote.valid_until ? (
               <Text style={s.quoteDateText}>{'בתוקף עד '}{fmtDate(quote.valid_until)}</Text>
             ) : null}

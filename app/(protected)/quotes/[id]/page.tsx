@@ -12,6 +12,7 @@ import { QuoteActionsPanel } from '@/components/QuoteActionsPanel'
 import { QuoteApprovalsPanel } from '@/components/QuoteApprovalsPanel'
 
 import { parseNotes } from '@/lib/notesFormat'
+import { formatRevisionNumber } from '@/lib/revisionNumber'
 
 const fixRtlText = (text: string) =>
   text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
@@ -194,7 +195,13 @@ export default async function QuoteViewPage({ params }: Props) {
                   : PAYMENT_STATUS_LABELS[paymentStatus]}
               </span>
             )}
-            <span className="text-xs font-mono text-gray-400 ms-auto">{quote.quote_number ?? '—'}</span>
+            <div className="flex items-center gap-1.5 ms-auto">
+              <span className="text-xs font-mono text-gray-400">{quote.quote_number ?? '—'}</span>
+              <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {formatRevisionNumber((quote as any).revision_number)}
+              </span>
+            </div>
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-1">
             {quote.client_name || '(ללא שם לקוח)'}
@@ -433,6 +440,8 @@ export default async function QuoteViewPage({ params }: Props) {
         <QuoteActionsPanel
           quoteId={id}
           quoteNumber={quote.quote_number}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          revisionNumber={(quote as any).revision_number ?? 0}
           clientName={quote.client_name}
           totalAmount={total}
           currentStatus={quote.status}

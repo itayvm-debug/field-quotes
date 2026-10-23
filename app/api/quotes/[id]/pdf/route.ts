@@ -168,6 +168,8 @@ export async function GET(
         pricing_mode: ((quote as any).pricing_mode ?? 'items') as 'items' | 'overall',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         manual_total: (quote as any).manual_total as number | null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        revision_number: ((quote as any).revision_number ?? 0) as number,
       },
       items,
       company: {
@@ -190,7 +192,8 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(pdfElement as any)
 
-    const disposition = `inline; filename="${buildQuotePdfFilename(quote.quote_number)}"`
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const disposition = `inline; filename="${buildQuotePdfFilename(quote.quote_number, (quote as any).revision_number ?? 0)}"`
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const blob = new Blob([buffer as any], { type: 'application/pdf' })

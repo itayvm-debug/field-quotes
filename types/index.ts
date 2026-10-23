@@ -61,6 +61,8 @@ export interface Quote {
   // Pricing mode (added in migration 016)
   pricing_mode?: 'items' | 'overall'
   manual_total?: number | null
+  // Revision number (added in migration 017)
+  revision_number?: number
 }
 
 export interface QuoteWithItems extends Quote {

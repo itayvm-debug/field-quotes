@@ -37,6 +37,7 @@ interface PendingPaymentRequest {
 interface Props {
   quoteId: string
   quoteNumber: string | null
+  revisionNumber?: number | null
   clientName: string
   totalAmount: number
   currentStatus: string
@@ -54,7 +55,7 @@ interface Props {
 }
 
 export function QuoteActionsPanel({
-  quoteId, quoteNumber, clientName, totalAmount,
+  quoteId, quoteNumber, revisionNumber, clientName, totalAmount,
   currentStatus, userRole, userId, companyName,
   initialPaymentStatus, initialPaidAmount, initialClosedPaymentNote,
   initialPaymentClosedAt, paymentClosedByName,
@@ -309,7 +310,7 @@ export function QuoteActionsPanel({
   const handlePrepareShare = async () => {
     setShareState('preparing')
     try {
-      const p = await prepareQuotePdfFile(quoteId, quoteNumber, clientName, companyName)
+      const p = await prepareQuotePdfFile(quoteId, quoteNumber, clientName, companyName, revisionNumber)
       setPreparedShare(p)
       setShareState('ready')
     } catch {
