@@ -642,6 +642,21 @@ const s = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
   },
+
+  // Shown at the bottom of a page when more items continue on the next page
+  continuationHint: {
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F5A05A',
+    paddingVertical: 4,
+    backgroundColor: '#FFF7F0',
+    alignItems: 'center' as never,
+  },
+  continuationHintText: {
+    fontSize: 8,
+    color: '#B45309',
+    textAlign: 'center' as never,
+  },
 })
 
 // ── Inline bold renderer — parses **text** markers ────────────────────────────
@@ -956,6 +971,9 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
   // Extra buffer on single-page fit checks (A / AC) to absorb render-engine
   // sub-pixel rounding and minor font-metric discrepancies in the closing block.
   const CLOSING_SAFETY_MARGIN   = 20
+  // Space reserved on every non-last items page for the "המשך סעיפים בעמוד הבא" hint.
+  // borderTop:1 + paddingVertical:4+4 + marginTop:4 + text:8 ≈ 18pt
+  const CONTINUATION_HINT_HEIGHT = 18
 
   const allItemsH = items.reduce((acc, it) => acc + estimateItemHeight(it), 0)
 
@@ -1036,7 +1054,13 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
   // Candidate C: greedy split, summary on last items page (always valid) ────────
   const cC = (() => {
-    const split = splitItemsForPages(items, FIRST_PAGE_ITEMS_BUDGET, CONT_PAGE_ITEMS_BUDGET)
+    // Reserve CONTINUATION_HINT_HEIGHT on every page because we don't know which is
+    // last during the split. The last page ends up with a small extra buffer — harmless.
+    const split = splitItemsForPages(
+      items,
+      FIRST_PAGE_ITEMS_BUDGET - CONTINUATION_HINT_HEIGHT,
+      CONT_PAGE_ITEMS_BUDGET - CONTINUATION_HINT_HEIGHT,
+    )
     const lastIdx = split.length - 1
     const lastPageCap = lastIdx === 0 ? PAGE_1_CAPACITY : CONT_PAGE_ITEMS_BUDGET
     const lastPageH = split[lastIdx].reduce((acc, it) => acc + estimateItemHeight(it), 0)
@@ -1455,6 +1479,12 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
             {itemPages[0].map((item, idx) => renderItemRow(item, itemPageOffsets[0] + idx))}
           </View>
 
+          {itemPages.length > 1 && (
+            <View style={s.continuationHint} wrap={false}>
+              <Text style={s.continuationHintText}>{'המשך סעיפים בעמוד הבא ↓'}</Text>
+            </View>
+          )}
+
           {itemPages.length === 1 && !summaryDetached && renderSummaryBlock(summaryCompact)}
         </View>
 
@@ -1480,6 +1510,11 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
                 {tableHeaderRow}
                 {pageItems.map((item, idx) => renderItemRow(item, itemPageOffsets[pi + 1] + idx))}
               </View>
+              {!isLastPage && (
+                <View style={s.continuationHint} wrap={false}>
+                  <Text style={s.continuationHintText}>{'המשך סעיפים בעמוד הבא ↓'}</Text>
+                </View>
+              )}
               {isLastPage && !summaryDetached && renderSummaryBlock(summaryCompact)}
             </View>
 
