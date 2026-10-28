@@ -1481,7 +1481,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
 
           {itemPages.length > 1 && (
             <View style={s.continuationHint} wrap={false}>
-              <Text style={s.continuationHintText}>{'המשך סעיפים בעמוד הבא ↓'}</Text>
+              <Text style={s.continuationHintText}>{'המשך סעיפים בעמוד הבא'}</Text>
             </View>
           )}
 
@@ -1512,7 +1512,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
               </View>
               {!isLastPage && (
                 <View style={s.continuationHint} wrap={false}>
-                  <Text style={s.continuationHintText}>{'המשך סעיפים בעמוד הבא ↓'}</Text>
+                  <Text style={s.continuationHintText}>{'המשך סעיפים בעמוד הבא'}</Text>
                 </View>
               )}
               {isLastPage && !summaryDetached && renderSummaryBlock(summaryCompact)}
