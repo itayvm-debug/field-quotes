@@ -1431,7 +1431,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
                 {quote.client_address ? (
                   <View>
                     <Text style={s.fieldLabel}>{'כתובת העבודה'}</Text>
-                    <Text style={s.fieldValue}>{quote.client_address}</Text>
+                    <Text style={s.fieldValue}>{stripBidiControlChars(quote.client_address)}</Text>
                   </View>
                 ) : null}
                 {quote.project_description ? (
@@ -1446,12 +1446,12 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
               <View style={{ flex: 1, gap: 4 }}>
                 <View>
                   <Text style={s.fieldLabel}>{'לכבוד'}</Text>
-                  <Text style={[s.fieldValue, { fontSize: 10 }]}>{quote.client_name || '—'}</Text>
+                  <Text style={[s.fieldValue, { fontSize: 10 }]}>{stripBidiControlChars(quote.client_name) || '—'}</Text>
                 </View>
                 {quote.client_contact ? (
                   <View>
                     <Text style={s.fieldLabel}>{'איש קשר'}</Text>
-                    <Text style={s.fieldValue}>{quote.client_contact}</Text>
+                    <Text style={s.fieldValue}>{stripBidiControlChars(quote.client_contact)}</Text>
                   </View>
                 ) : null}
               </View>
