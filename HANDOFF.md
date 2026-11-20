@@ -36,7 +36,7 @@ lib/share/shareQuotePdf.ts  PDF filename (natan-valdman-price-quote-{num}-ver{nn
 lib/notesFormat.ts, lib/formatText.ts  rich notes / **bold** parsing
 lib/supabase/{client,server,admin}.ts  browser / server (cookies) / service-role clients
 types/database.ts        hand-maintained Supabase types (many `as any` casts for newer columns)
-supabase/migrations/     001…018 SQL files (source of truth for schema)
+supabase/migrations/     001…019 SQL files (source of truth for schema)
 ```
 
 ## Authentication
@@ -102,6 +102,8 @@ Claude permissions: `.claude/settings.json` (project allowlist for routine npm/g
 - PDF height estimates drift when styles change → items overflow/clip. Re-render a long quote after any PDF style change.
 - `types/database.ts` lags the schema; newer columns use `(x as any)`. Keep that pattern or update types consistently.
 - Dates: use `lib/dates.ts` (`todayIso`, `addDaysIso`, `daysBetweenIso`) — Israel-time "today", UTC day arithmetic. Never `toISOString().split('T')[0]` for quote dates (UTC off-by-one after midnight, DST shifts).
+- **Error log**: `app_errors` table (migration 019, admin-read RLS, service-role writes) shown on `/admin/errors` (menu "שגיאות מערכת", badge = last 24h). Sources: `instrumentation.ts` `onRequestError` (all unhandled server errors), `logServerError()` (`lib/errorLog.ts`) in routes that catch their own errors (PDF, duplicate), and `reportClientError()` → `/api/client-error` for browser failures (quote save steps, PDF share, duplicate, `app/(protected)/error.tsx` boundary). 90-day retention, pruned by the logger. Check `/admin/errors` (or query `app_errors`) first when debugging a report.
+- Next 16.4 `error.tsx` props are `{ error: unknown, retry }` (not `reset`).
 - Vercel Hobby keeps runtime logs only ~30 min (`vercel logs --project field-quotes --query "..."`); reproduce quickly after an error.
 - Windows local builds may hit ENOMEM/OOM; distinguish from real code errors (retry with `NODE_OPTIONS=--max-old-space-size=4096`).
 - Repo lives under OneDrive with a Hebrew path — quote paths in shell commands.

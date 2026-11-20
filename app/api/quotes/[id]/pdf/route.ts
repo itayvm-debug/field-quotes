@@ -3,6 +3,7 @@ import React from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 import { QuotePDF, resetPdfFonts } from '@/lib/pdf/QuotePDF'
+import { logServerError } from '@/lib/errorLog'
 import type { PdfItem, PdfItemImage, PdfCreator } from '@/lib/pdf/QuotePDF'
 import { buildQuotePdfFilename } from '@/lib/share/shareQuotePdf'
 import { parsePriceAdjustments } from '@/lib/priceAdjustments'
@@ -198,9 +199,11 @@ export async function GET(
       },
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    const stack = err instanceof Error ? err.stack : undefined
-    console.error('PDF render error:', message, stack)
+    await logServerError(err, {
+      route: `/api/quotes/${id}/pdf`,
+      userId: user.id,
+      context: { kind: 'pdf-render', quoteNumber: quote.quote_number, items: items.length },
+    })
     return NextResponse.json({ error: 'PDF generation failed' }, { status: 500 })
   }
 }

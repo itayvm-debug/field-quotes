@@ -10,6 +10,7 @@ interface Props {
   logoUrl: string | null
   openRequestCount: number
   pendingPaymentCount: number
+  recentErrorCount?: number
 }
 
 function MenuLink({
@@ -39,7 +40,7 @@ function MenuLink({
   )
 }
 
-export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount, pendingPaymentCount }: Props) {
+export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount, pendingPaymentCount, recentErrorCount = 0 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
 
@@ -209,6 +210,7 @@ export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount, pendingPay
                   </MenuLink>
                   <MenuLink href="/admin/analytics" onClick={closeMenu}>ניתוח נתונים</MenuLink>
                   <MenuLink href="/admin/users" onClick={closeMenu}>ניהול משתמשים</MenuLink>
+                  <MenuLink href="/admin/errors" onClick={closeMenu} badge={recentErrorCount}>שגיאות מערכת</MenuLink>
                   <MenuLink href="/settings/company" onClick={closeMenu}>הגדרות חברה</MenuLink>
                 </>
               ) : (

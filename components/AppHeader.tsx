@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AppHeaderClient } from '@/components/AppHeaderClient'
+import { isoHoursAgo } from '@/lib/dates'
 
 export async function AppHeader() {
   const supabase = await createClient()
@@ -24,8 +25,10 @@ export async function AppHeader() {
 
   let openRequestCount = 0
   let pendingPaymentCount = 0
+  let recentErrorCount = 0
   if (isAdmin) {
-    const [supportResult, paymentResult] = await Promise.all([
+    const dayAgo = isoHoursAgo(24)
+    const [supportResult, paymentResult, errorsResult] = await Promise.all([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
         .from('support_requests')
@@ -37,9 +40,16 @@ export async function AppHeader() {
         .from('payment_update_requests')
         .select('id', { count: 'exact', head: true })
         .eq('request_status', 'pending'),
+      // Errors logged in the last 24h (RLS: admins only)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from('app_errors')
+        .select('id', { count: 'exact', head: true })
+        .gt('created_at', dayAgo),
     ])
     openRequestCount = supportResult.count ?? 0
     pendingPaymentCount = paymentResult.count ?? 0
+    recentErrorCount = errorsResult.count ?? 0
   }
 
   return (
@@ -48,6 +58,7 @@ export async function AppHeader() {
       logoUrl={logoUrl}
       openRequestCount={openRequestCount}
       pendingPaymentCount={pendingPaymentCount}
+      recentErrorCount={recentErrorCount}
     />
   )
 }

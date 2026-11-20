@@ -9,6 +9,7 @@ import {
 } from '@/types'
 import { formatCurrency } from '@/lib/calculations'
 import { prepareQuotePdfFile, sharePreparedFile, type PreparedShare } from '@/lib/share/shareQuotePdf'
+import { reportClientError } from '@/lib/reportClientError'
 
 const ACTIVE_STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'rejected']
 const PAYMENT_STATUS_ORDER: PaymentStatus[] = ['unpaid', 'partial', 'paid', 'closed_partial']
@@ -318,7 +319,8 @@ export function QuoteActionsPanel({
       if (!res.ok) throw new Error(String(res.status))
       const { id } = await res.json()
       router.push(`/quotes/${id}/edit`)
-    } catch {
+    } catch (e) {
+      reportClientError(`שכפול הצעה נכשל: ${e instanceof Error ? e.message : String(e)}`, { context: { kind: 'duplicate', quoteId } })
       setDuplicateError(true)
       setDuplicating(false)
     }
@@ -330,7 +332,8 @@ export function QuoteActionsPanel({
       const p = await prepareQuotePdfFile(quoteId, quoteNumber, clientName, companyName, revisionNumber)
       setPreparedShare(p)
       setShareState('ready')
-    } catch {
+    } catch (e) {
+      reportClientError(`הכנת PDF לשיתוף נכשלה: ${e instanceof Error ? e.message : String(e)}`, { context: { kind: 'pdf-share', quoteId } })
       setShareState('error')
       setTimeout(() => setShareState('idle'), 3500)
     }

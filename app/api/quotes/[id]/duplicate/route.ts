@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { todayIso, addDaysIso, daysBetweenIso } from '@/lib/dates'
+import { logServerError } from '@/lib/errorLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +63,9 @@ export async function POST(
     .select('id, quote_number')
     .single()
   if (insErr || !created) {
-    console.error('[duplicate] quote insert failed', insErr?.message)
+    await logServerError(new Error(`duplicate: quote insert failed: ${insErr?.message ?? 'no row'}`), {
+      route: `/api/quotes/${id}/duplicate`, userId: user.id, context: { code: insErr?.code },
+    })
     return NextResponse.json({ error: 'Duplicate failed' }, { status: 500 })
   }
 
@@ -85,7 +88,9 @@ export async function POST(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: itemsErr } = await supabase.from('quote_items').insert(items as any)
     if (itemsErr) {
-      console.error('[duplicate] items insert failed', itemsErr.message)
+      await logServerError(new Error(`duplicate: items insert failed: ${itemsErr.message}`), {
+        route: `/api/quotes/${id}/duplicate`, userId: user.id, context: { code: itemsErr.code, items: items.length },
+      })
       // Don't leave a half-copied quote behind (quote delete is admin-only under RLS)
       await createAdminClient().from('quotes').delete().eq('id', created.id)
       return NextResponse.json({ error: 'Duplicate failed' }, { status: 500 })

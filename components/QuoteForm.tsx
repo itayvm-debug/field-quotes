@@ -13,6 +13,7 @@ import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, P
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 import { formatRevisionNumber } from '@/lib/revisionNumber'
 import { todayIso, addDaysIso, daysBetweenIso } from '@/lib/dates'
+import { reportClientError } from '@/lib/reportClientError'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -175,6 +176,14 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
   // Item's DB id: from state, or from an earlier save whose re-render hasn't landed yet
   const dbIdOf = (item: QuoteItemDraft) => item.dbId ?? insertedItemIdsRef.current.get(item.tempId)
 
+  // Records a failed save step in the admin error log (/admin/errors)
+  const reportSaveError = (stage: string, error: { message: string; code?: string; details?: string | null; hint?: string | null }) => {
+    console.error(`[quote-save-error][${stage}]`, error.message)
+    reportClientError(`שמירת הצעה נכשלה (${stage}): ${error.message}`, {
+      context: { kind: 'quote-save', stage, quoteId: savedIdRef.current ?? null, code: error.code ?? null, details: error.details ?? null, hint: error.hint ?? null },
+    })
+  }
+
   // ── Core save (no UI side effects) ──────────────────────────────────────────
   // Queued behind any save already in flight (see saveChainRef).
   const performSave = (extraPayload?: Record<string, unknown>): Promise<SaveResult | null> => {
@@ -219,7 +228,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         .select('id')
         .single()
       if (error) {
-        console.error('[quote-save-error][insert]', { message: error.message, details: error.details, hint: error.hint, code: error.code })
+        reportSaveError('insert', error)
         return null
       }
       if (!created) return null
@@ -230,7 +239,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await supabase.from('quotes').update(headerPayload as any).eq('id', currentId)
       if (error) {
-        console.error('[quote-save-error][update]', { message: error.message, details: error.details, hint: error.hint, code: error.code })
+        reportSaveError('update', error)
         return null
       }
     }
@@ -238,7 +247,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     if (removedDbIds.length > 0) {
       const { error } = await supabase.from('quote_items').delete().in('id', removedDbIds)
       if (error) {
-        console.error('[quote-save-error][delete-items]', { message: error.message, code: error.code })
+        reportSaveError('delete-items', error)
         return null
       }
       setRemovedDbIds([])
@@ -264,7 +273,10 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
           })) as any
         )
         .select('id')
-      if (error) return null
+      if (error) {
+        reportSaveError('insert-items', error)
+        return null
+      }
       if (inserted) {
         newItems.forEach((item, idx) => {
           const dbId = inserted[idx]?.id
@@ -301,7 +313,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         } as any)
         .eq('id', dbIdOf(item)!)
       if (error) {
-        console.error('[quote-save-error][update-item]', { message: error.message, code: error.code })
+        reportSaveError('update-item', error)
         return null
       }
     }

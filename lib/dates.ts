@@ -28,3 +28,8 @@ export function addDaysIso(iso: string, days: number): string {
 export function daysBetweenIso(from: string, to: string): number {
   return Math.round((isoToUtcMs(to) - isoToUtcMs(from)) / 86_400_000)
 }
+
+// ISO timestamp `hours` ago (for "last 24h" style queries)
+export function isoHoursAgo(hours: number): string {
+  return new Date(Date.now() - hours * 3_600_000).toISOString()
+}
