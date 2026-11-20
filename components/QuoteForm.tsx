@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { QuoteItemCard } from './QuoteItemCard'
@@ -73,6 +73,13 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [savedId, setSavedId] = useState<string | undefined>(quoteId)
+  // Saves can be triggered back-to-back (e.g. image uploads on new items) before
+  // React re-renders with the new ids. These refs hold the ids as soon as the DB
+  // returns them, and saveChainRef runs saves one at a time, so a later save
+  // never re-inserts the quote or items an earlier save already created.
+  const savedIdRef = useRef<string | undefined>(quoteId)
+  const insertedItemIdsRef = useRef(new Map<string, string>()) // tempId -> db id
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve())
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -165,8 +172,18 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     return null
   }
 
+  // Item's DB id: from state, or from an earlier save whose re-render hasn't landed yet
+  const dbIdOf = (item: QuoteItemDraft) => item.dbId ?? insertedItemIdsRef.current.get(item.tempId)
+
   // ── Core save (no UI side effects) ──────────────────────────────────────────
-  const performSave = async (extraPayload?: Record<string, unknown>): Promise<SaveResult | null> => {
+  // Queued behind any save already in flight (see saveChainRef).
+  const performSave = (extraPayload?: Record<string, unknown>): Promise<SaveResult | null> => {
+    const run = saveChainRef.current.then(() => doSave(extraPayload))
+    saveChainRef.current = run.catch(() => null)
+    return run
+  }
+
+  const doSave = async (extraPayload?: Record<string, unknown>): Promise<SaveResult | null> => {
     const supabase = createClient()
     const headerPayload = {
       client_name: header.client_name,
@@ -188,11 +205,11 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         ? (parseFloat(header.manual_total ?? '') || null)
         : null,
       // New quotes get 'draft'; existing quotes keep their current status
-      ...(!savedId && { status: 'draft' as const }),
+      ...(!savedIdRef.current && { status: 'draft' as const }),
       ...(extraPayload ?? {}),
     }
 
-    let currentId = savedId
+    let currentId = savedIdRef.current
 
     if (!currentId) {
       const { data: created, error } = await supabase
@@ -207,6 +224,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       }
       if (!created) return null
       currentId = created.id
+      savedIdRef.current = currentId
       setSavedId(currentId)
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,7 +244,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       setRemovedDbIds([])
     }
 
-    const newItems = items.filter((i) => !i.dbId)
+    const newItems = items.filter((i) => !dbIdOf(i))
     const tempToDbId = new Map<string, string>()
 
     if (newItems.length > 0) {
@@ -250,7 +268,10 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       if (inserted) {
         newItems.forEach((item, idx) => {
           const dbId = inserted[idx]?.id
-          if (dbId) tempToDbId.set(item.tempId, dbId)
+          if (dbId) {
+            tempToDbId.set(item.tempId, dbId)
+            insertedItemIdsRef.current.set(item.tempId, dbId)
+          }
         })
         setItems((prev) =>
           prev.map((item) => {
@@ -264,7 +285,8 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       }
     }
 
-    for (const item of items.filter((i) => i.dbId)) {
+    // Items inserted just above are already up to date; update the rest
+    for (const item of items.filter((i) => dbIdOf(i) && !tempToDbId.has(i.tempId))) {
       const { error } = await supabase
         .from('quote_items')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -277,7 +299,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
           notes: item.notes,
           is_optional: item.is_optional ?? false,
         } as any)
-        .eq('id', item.dbId!)
+        .eq('id', dbIdOf(item)!)
       if (error) {
         console.error('[quote-save-error][update-item]', { message: error.message, code: error.code })
         return null
@@ -320,8 +342,9 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
   ): Promise<{ quoteId: string; dbId: string } | null> => {
     // If already saved, return existing IDs immediately
     const existingItem = items.find((i) => i.tempId === tempId)
-    if (existingItem?.dbId && savedId) {
-      return { quoteId: savedId, dbId: existingItem.dbId }
+    const existingDbId = existingItem ? dbIdOf(existingItem) : undefined
+    if (existingDbId && savedIdRef.current) {
+      return { quoteId: savedIdRef.current, dbId: existingDbId }
     }
 
     setAutoSaving(true)
@@ -331,6 +354,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
 
     const dbId =
       result.tempToDbId.get(tempId) ??
+      insertedItemIdsRef.current.get(tempId) ??
       items.find((i) => i.tempId === tempId)?.dbId
     if (!dbId) return null
     return { quoteId: result.savedId, dbId }
@@ -338,7 +362,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
 
   // ── Silent auto-save (for project image upload when quote not yet saved) ─────
   const autoSaveQuote = async (): Promise<string | null> => {
-    if (savedId) return savedId
+    if (savedIdRef.current) return savedIdRef.current
     setAutoSaving(true)
     const result = await performSave()
     setAutoSaving(false)

@@ -89,6 +89,8 @@ export function QuoteActionsPanel({
   const [archiveWorking, setArchiveWorking] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteWorking, setDeleteWorking] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
+  const [duplicateError, setDuplicateError] = useState(false)
   const [shareState, setShareState] = useState<'idle' | 'preparing' | 'ready' | 'sharing' | 'error' | 'no-support'>('idle')
   const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null)
 
@@ -305,6 +307,21 @@ export function QuoteActionsPanel({
     }
     await supabase.from('quotes').delete().eq('id', quoteId)
     router.push('/dashboard?status=archived')
+  }
+
+  const handleDuplicate = async () => {
+    if (duplicating) return
+    setDuplicating(true)
+    setDuplicateError(false)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/duplicate`, { method: 'POST' })
+      if (!res.ok) throw new Error(String(res.status))
+      const { id } = await res.json()
+      router.push(`/quotes/${id}/edit`)
+    } catch {
+      setDuplicateError(true)
+      setDuplicating(false)
+    }
   }
 
   const handlePrepareShare = async () => {
@@ -696,6 +713,18 @@ export function QuoteActionsPanel({
               className="w-full py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 text-sm font-semibold active:bg-gray-100 transition-colors disabled:opacity-50">
               {shareState === 'preparing' ? 'מכין קובץ PDF...' :
                shareState === 'sharing' ? 'משתף...' : 'שתף PDF'}
+            </button>
+          </>
+        )}
+
+        {canEdit && (
+          <>
+            {duplicateError && (
+              <p className="text-xs text-red-500 text-center">שגיאה בשכפול ההצעה. נסה שוב.</p>
+            )}
+            <button type="button" onClick={handleDuplicate} disabled={duplicating}
+              className="w-full py-2.5 rounded-xl border border-orange-200 text-orange-600 text-sm font-medium active:bg-orange-50 disabled:opacity-50">
+              {duplicating ? 'משכפל...' : 'שכפל הצעה'}
             </button>
           </>
         )}
