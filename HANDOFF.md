@@ -93,6 +93,8 @@ Claude permissions: `.claude/settings.json` (project allowlist for routine npm/g
 - `quote_items.is_optional` — optional items excluded from totals.
 - Item order = `quote_items.item_number`; reordering via `ReorderItemsModal`.
 - Project image: `quotes.project_image_path/_caption/_fit`.
+- Duplicate quote: "שכפל הצעה" on the quote page → `POST /api/quotes/[id]/duplicate` → new draft (new number, today, same validity length, VER00, current user as owner) with header + items; images/status/payment are not copied. Opens the copy in edit mode.
+- Saving in `QuoteForm` is serialized (`saveChainRef`) and ids are tracked in refs (`savedIdRef`, `insertedItemIdsRef`) so back-to-back auto-saves never insert duplicates — keep that when touching save logic.
 - Sharing: Web Share API with the generated PDF file (fallback download) — `PdfShareButton`, `lib/share/shareQuotePdf.ts`.
 
 ## Known pitfalls
