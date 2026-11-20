@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { QuoteForm } from '@/components/QuoteForm'
 import { parsePriceAdjustments } from '@/lib/priceAdjustments'
+import { todayIso, addDaysIso, daysBetweenIso } from '@/lib/dates'
 import type { QuoteItemDraft, QuoteHeaderDraft } from '@/types'
 
 // Shift quote_date to today and move valid_until by the same number of days.
@@ -10,7 +11,7 @@ function shiftDatesIfNeeded(
   quoteDate: string | null,
   validUntil: string | null,
 ): { quote_date: string; valid_until: string } {
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIso()
   const origDate = quoteDate ?? today
 
   if (origDate === today) {
@@ -18,19 +19,10 @@ function shiftDatesIfNeeded(
   }
 
   // Preserve original validity duration; fall back to 30 days if invalid/missing.
-  let newValidUntil: string
-  if (validUntil && validUntil > origDate) {
-    const days = Math.round(
-      (new Date(validUntil).getTime() - new Date(origDate).getTime()) / 86_400_000
-    )
-    const d = new Date(today)
-    d.setDate(d.getDate() + days)
-    newValidUntil = d.toISOString().split('T')[0]
-  } else {
-    const d = new Date(today)
-    d.setDate(d.getDate() + 30)
-    newValidUntil = d.toISOString().split('T')[0]
-  }
+  const newValidUntil =
+    validUntil && validUntil > origDate
+      ? addDaysIso(today, daysBetweenIso(origDate, validUntil))
+      : addDaysIso(today, 30)
 
   return { quote_date: today, valid_until: newValidUntil }
 }

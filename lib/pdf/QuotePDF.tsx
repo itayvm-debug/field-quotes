@@ -47,8 +47,10 @@ const fmtDate = (s: string | null | undefined) => {
   return `${d || ''}.${m || ''}.${y || ''}`
 }
 
+// Strips stray BiDi control chars from user text first (see stripBidiControlChars),
+// then appends one RLM per non-empty line to anchor RTL direction.
 const fixRtlText = (text: string) =>
-  text.split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
+  stripBidiControlChars(text).split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
 
 const PRICING_TYPE_LABELS: Record<string, string> = {
   lump_sum: 'הצעה פאושלית',
@@ -1196,7 +1198,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
             {!isOverallMode && <View style={s.colTotal}><Text style={s.tdNum}>{fmtCurrency(lineTotal)}</Text></View>}
             {!isOverallMode && <View style={s.colPrice}><Text style={s.tdNum}>{fmtCurrency(item.unit_price)}</Text></View>}
             <View style={s.colQty}><Text style={s.tdNum}>{item.quantity}</Text></View>
-            <View style={s.colUnit}><Text style={s.tdText}>{item.unit}</Text></View>
+            <View style={s.colUnit}><Text style={s.tdText}>{stripBidiControlChars(item.unit ?? '')}</Text></View>
             <View style={isOverallMode ? colDescWide : s.colDesc}>
               {isOptional && <Text style={s.optionalLabel}>{'אופציה — לא כלול בסה״כ'}</Text>}
               {renderDescriptionBlock(item.description, s.tdText)}
@@ -1468,7 +1470,7 @@ export function QuotePDF({ quote, items, company, logoUrl, creator, projectImage
                   style={[s.projectImageImg, { objectFit: (projectImageFit ?? 'cover') as any }]}
                 />
                 {projectImageCaption ? (
-                  <Text style={s.projectImageCaption}>{projectImageCaption}</Text>
+                  <Text style={s.projectImageCaption}>{stripBidiControlChars(projectImageCaption)}</Text>
                 ) : null}
               </View>
             </View>

@@ -1,6 +1,35 @@
 'use client'
 
+import { useState } from 'react'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
+
+// Keeps the raw typed text locally so intermediate values like "2." or "0.0"
+// survive re-renders; reports the parsed non-negative number upward.
+function DecimalInput({ value, onChange }: { value: number | undefined; onChange: (v: number) => void }) {
+  const [text, setText] = useState(() => (value ? String(value) : ''))
+  const parsed = parseFloat(text)
+  const textValue = isNaN(parsed) || parsed < 0 ? 0 : parsed
+  // Resync when the value changes from outside (e.g. % / ₪ toggle resets it)
+  if ((value ?? 0) !== textValue) {
+    setText(value ? String(value) : '')
+  }
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => {
+        const raw = e.target.value
+        setText(raw)
+        const val = parseFloat(raw)
+        onChange(isNaN(val) || val < 0 ? 0 : val)
+      }}
+      placeholder="0"
+      className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-left"
+      style={{ direction: 'ltr' }}
+    />
+  )
+}
 
 const ADDITION_PRESETS = [
   'תוספת אילת',
@@ -44,10 +73,12 @@ function AdjustmentRow({ adjustment, isFirst, isLast, onChange, onRemove, onMove
   }
 
   const handleValueTypeChange = (vt: 'percentage' | 'fixed') => {
+    // Initialise the new value to 0 so the row passes parsePriceAdjustments
+    // on reload even if the user saves before typing an amount.
     if (vt === 'fixed') {
-      onChange({ valueType: 'fixed', percentage: undefined })
+      onChange({ valueType: 'fixed', percentage: undefined, fixedAmount: 0 })
     } else {
-      onChange({ valueType: 'percentage', fixedAmount: undefined })
+      onChange({ valueType: 'percentage', fixedAmount: undefined, percentage: 0 })
     }
   }
 
@@ -156,34 +187,18 @@ function AdjustmentRow({ adjustment, isFirst, isLast, onChange, onRemove, onMove
         {valueType === 'percentage' ? (
           <>
             <span className="text-xs text-gray-500 shrink-0">אחוז</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={(adjustment.percentage ?? 0) === 0 ? '' : adjustment.percentage}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value)
-                onChange({ percentage: isNaN(val) || val < 0 ? 0 : val })
-              }}
-              placeholder="0"
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-left"
-              style={{ direction: 'ltr' }}
+            <DecimalInput
+              value={adjustment.percentage}
+              onChange={(v) => onChange({ percentage: v })}
             />
             <span className="text-xs text-gray-400 shrink-0">%</span>
           </>
         ) : (
           <>
             <span className="text-xs text-gray-500 shrink-0">סכום</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={(adjustment.fixedAmount ?? 0) === 0 ? '' : adjustment.fixedAmount}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value)
-                onChange({ fixedAmount: isNaN(val) || val < 0 ? 0 : val })
-              }}
-              placeholder="0"
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-left"
-              style={{ direction: 'ltr' }}
+            <DecimalInput
+              value={adjustment.fixedAmount}
+              onChange={(v) => onChange({ fixedAmount: v })}
             />
             <span className="text-xs text-gray-400 shrink-0">₪</span>
           </>

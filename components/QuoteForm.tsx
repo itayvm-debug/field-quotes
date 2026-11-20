@@ -12,6 +12,7 @@ import { ReorderItemsModal } from './ReorderItemsModal'
 import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, PRICING_MODE_LABELS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
 import { formatRevisionNumber } from '@/lib/revisionNumber'
+import { todayIso, addDaysIso, daysBetweenIso } from '@/lib/dates'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -27,16 +28,14 @@ const TERMS_LIST = PAYMENT_TERMS_OPTIONS as unknown as string[]
 const isCustomTerms = (terms: string) => terms !== '' && !TERMS_LIST.includes(terms)
 
 const defaultHeader = (): QuoteHeaderDraft => {
-  const today = new Date().toISOString().split('T')[0]
-  const d = new Date(today)
-  d.setDate(d.getDate() + 60)
+  const today = todayIso()
   return {
     client_name: '',
     client_address: '',
     client_contact: '',
     project_description: '',
     quote_date: today,
-    valid_until: d.toISOString().split('T')[0],
+    valid_until: addDaysIso(today, 60),
     payment_terms: '',
     exclusions: DEFAULT_EXCLUSIONS,
     vat_percentage: 0,
@@ -174,7 +173,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
       client_address: header.client_address,
       client_contact: header.client_contact,
       project_description: header.project_description,
-      quote_date: header.quote_date || new Date().toISOString().split('T')[0],
+      quote_date: header.quote_date || todayIso(),
       valid_until: header.valid_until || null,
       payment_terms: header.payment_terms,
       exclusions: header.exclusions,
@@ -194,8 +193,6 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     }
 
     let currentId = savedId
-
-    console.log('[quote-save-payload]', JSON.stringify(headerPayload, null, 2))
 
     if (!currentId) {
       const { data: created, error } = await supabase
@@ -221,7 +218,11 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     }
 
     if (removedDbIds.length > 0) {
-      await supabase.from('quote_items').delete().in('id', removedDbIds)
+      const { error } = await supabase.from('quote_items').delete().in('id', removedDbIds)
+      if (error) {
+        console.error('[quote-save-error][delete-items]', { message: error.message, code: error.code })
+        return null
+      }
       setRemovedDbIds([])
     }
 
@@ -264,7 +265,7 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     }
 
     for (const item of items.filter((i) => i.dbId)) {
-      await supabase
+      const { error } = await supabase
         .from('quote_items')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .update({
@@ -277,6 +278,10 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
           is_optional: item.is_optional ?? false,
         } as any)
         .eq('id', item.dbId!)
+      if (error) {
+        console.error('[quote-save-error][update-item]', { message: error.message, code: error.code })
+        return null
+      }
     }
 
     return { savedId: currentId!, tempToDbId }
@@ -380,22 +385,13 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
     if (bumping) return
     setBumping(true)
     setSaveError(null)
-    const today = new Date().toISOString().split('T')[0]
-    const origDate = header.quote_date ?? today
-    let newValidUntil: string
+    const today = todayIso()
+    const origDate = header.quote_date || today
     const validUntil = header.valid_until
-    if (validUntil && validUntil > origDate) {
-      const days = Math.round(
-        (new Date(validUntil).getTime() - new Date(origDate).getTime()) / 86_400_000
-      )
-      const d = new Date(today)
-      d.setDate(d.getDate() + days)
-      newValidUntil = d.toISOString().split('T')[0]
-    } else {
-      const d = new Date(today)
-      d.setDate(d.getDate() + 30)
-      newValidUntil = d.toISOString().split('T')[0]
-    }
+    const newValidUntil =
+      validUntil && validUntil > origDate
+        ? addDaysIso(today, daysBetweenIso(origDate, validUntil))
+        : addDaysIso(today, 30)
     const result = await performSave({
       revision_number: currentRevision + 1,
       quote_date: today,
