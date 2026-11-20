@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import React from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
-import { QuotePDF } from '@/lib/pdf/QuotePDF'
+import { QuotePDF, resetPdfFonts } from '@/lib/pdf/QuotePDF'
 import type { PdfItem, PdfItemImage, PdfCreator } from '@/lib/pdf/QuotePDF'
 import { buildQuotePdfFilename } from '@/lib/share/shareQuotePdf'
 import { parsePriceAdjustments } from '@/lib/priceAdjustments'
@@ -178,6 +178,7 @@ export async function GET(
       projectImageFit: (((quote as any).project_image_fit ?? 'cover') as 'cover' | 'contain'),
     })
 
+    resetPdfFonts()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(pdfElement as any)
 
