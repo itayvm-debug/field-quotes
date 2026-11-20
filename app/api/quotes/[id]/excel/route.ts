@@ -257,8 +257,9 @@ export async function GET(
     imgs: Array<{ buf: Buffer; ext: 'jpeg' | 'png' | 'gif' } | null>
   }> = await Promise.all(
     rawItems.map(async (item) => {
+      // Same rule as the PDF: only images marked "include in PDF" go to the client file
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sorted = ((item.item_images ?? []) as any[]).sort(
+      const sorted = ((item.item_images ?? []) as any[]).filter((img: any) => img.include_in_pdf).sort(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)
       )
