@@ -107,7 +107,7 @@ export function buildMcpServer(ctx: Ctx): McpServer {
     safe('search_past_items', async ({ query, limit }: { query: string; limit?: number }) => {
       let q = db
         .from('quote_items')
-        .select('description, unit, quantity, unit_price, created_at, quotes!inner(quote_number, quote_date, client_name, user_id)')
+        .select('description, unit, quantity, unit_price, created_at, quotes!inner(quote_number, quote_date, client_name, user_id, pricing_mode)')
         .ilike('description', `%${esc(query)}%`)
         .order('created_at', { ascending: false })
         .limit(limit ?? 15)
@@ -115,12 +115,16 @@ export function buildMcpServer(ctx: Ctx): McpServer {
       const { data } = await q
       const rows = (data ?? []) as Array<{
         description: string; unit: string; quantity: number; unit_price: number
-        quotes: { quote_number: string | null; quote_date: string; client_name: string }
+        quotes: { quote_number: string | null; quote_date: string; client_name: string; pricing_mode: string | null }
       }>
       if (rows.length === 0) return ok(`לא נמצאו סעיפים קודמים עם "${query}".`)
-      return ok(rows.map((r) =>
-        `• ${r.description.replace(/\s*\n\s*/g, ' / ')}\n  ${r.quantity} ${r.unit} × ${ils(Number(r.unit_price))} — הצעה ${r.quotes.quote_number ?? '—'} (${r.quotes.client_name}, ${r.quotes.quote_date})`,
-      ).join('\n'))
+      return ok(rows.map((r) => {
+        // Lump-sum quotes have no per-item price — don't present ₪0 as a price
+        const price = r.quotes.pricing_mode === 'overall'
+          ? 'ללא מחיר לסעיף (הצעה במחיר כולל)'
+          : Number(r.unit_price) > 0 ? `× ${ils(Number(r.unit_price))}` : 'ללא מחיר'
+        return `• ${r.description.replace(/\s*\n\s*/g, ' / ')}\n  ${r.quantity} ${r.unit} ${price} — הצעה ${r.quotes.quote_number ?? '—'} (${r.quotes.client_name}, ${r.quotes.quote_date})`
+      }).join('\n'))
     }),
   )
 
