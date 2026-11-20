@@ -26,6 +26,35 @@ Font.register({
   ],
 })
 
+// ── Font glyph-cache warm-up ──────────────────────────────────────────────────
+// fontkit caches glyph objects by id, and whichever call creates a glyph first
+// decides its `codePoints`. If a glyph is first created without code points
+// (internal lookups by id), react-pdf's BiDi reordering later mis-maps string
+// indices and throws "Cannot read properties of undefined (reading 'id')" —
+// intermittently, depending on what the warm server instance rendered before.
+// Creating every mapped glyph via glyphForCodePoint up front prevents that.
+// Call (and await) before renderToBuffer; runs once per process.
+let fontWarmup: Promise<void> | null = null
+export function warmUpPdfFonts(): Promise<void> {
+  if (!fontWarmup) {
+    fontWarmup = (async () => {
+      for (const fontWeight of ['normal', 'bold'] as const) {
+        const source = Font.getFont({ fontFamily: 'Heebo', fontWeight })
+        if (!source) continue
+        await source.load()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const font = source.data as any
+        if (!font?.glyphForCodePoint || !font.characterSet) continue
+        for (const cp of font.characterSet as number[]) font.glyphForCodePoint(cp)
+      }
+    })().catch((err) => {
+      fontWarmup = null
+      console.warn('[pdf] font warm-up failed', err)
+    })
+  }
+  return fontWarmup
+}
+
 // ── Company brand colors ──────────────────────────────────────────────────────
 const ORANGE = '#E86510'
 const BLACK = '#1A1A1A'
