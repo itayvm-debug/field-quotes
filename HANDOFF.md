@@ -78,7 +78,9 @@ Claude permissions: `.claude/settings.json` (project allowlist for routine npm/g
 - **Custom pagination**: items are split across explicit `<Page>`s using `estimateItemHeight` / `estimateClosingBlockHeight` / `splitItemsForPages` and the `LAYOUT` constants + page budgets (`PAGE_USABLE=801`, overheads, safety margins). Style changes that affect item height must update `LAYOUT` so estimates stay in sync. Do not refactor this wholesale.
 - Each ItemBlock is `wrap={false}` (kept whole); item images flow outside it.
 - Non-last item pages show the hint **"המשך סעיפים בעמוד הבא"** (`CONTINUATION_HINT_HEIGHT` is reserved in the budget).
-- **BiDi**: `stripBidiControlChars` removes LRM/RLM/LRE–RLO/LRI–PDI before rendering; react-pdf draws them as visible garbage. Any new user text rendered in PDF must go through it.
+- **BiDi**: `stripBidiControlChars` removes LRM/RLM/LRE–RLO/LRI–PDI before rendering; react-pdf draws them as visible garbage. `fixRtlText` strips first, then appends one RLM per line; all user text in the PDF goes through one of them.
+- **Font reset per render**: the route calls `resetPdfFonts()` before `renderToBuffer`. fontkit caches glyphs by id across renders in a warm instance; stale glyphs without `codePoints` crash react-pdf's BiDi reordering (`Cannot read properties of undefined (reading 'id')`) for some quotes. Don't remove it. A "warm-up" that pre-creates all glyphs was tried and made it worse (reverted).
+- Local repro of PDF bugs: render `QuotePDF` with `npx tsx` from a temp script in the repo root (path aliases resolve there). On Windows the local logo path fails to load ("fetch failed") — harmless, Linux/Vercel only. Render several documents in one process to catch cross-render state bugs.
 - Filename built only by `buildQuotePdfFilename` (route Content-Disposition, share, download).
 
 ## Excel export
@@ -97,6 +99,8 @@ Claude permissions: `.claude/settings.json` (project allowlist for routine npm/g
 - BiDi control characters in PDF (see above). Hebrew + numbers/phones mix: test in an actual PDF.
 - PDF height estimates drift when styles change → items overflow/clip. Re-render a long quote after any PDF style change.
 - `types/database.ts` lags the schema; newer columns use `(x as any)`. Keep that pattern or update types consistently.
+- Dates: use `lib/dates.ts` (`todayIso`, `addDaysIso`, `daysBetweenIso`) — Israel-time "today", UTC day arithmetic. Never `toISOString().split('T')[0]` for quote dates (UTC off-by-one after midnight, DST shifts).
+- Vercel Hobby keeps runtime logs only ~30 min (`vercel logs --project field-quotes --query "..."`); reproduce quickly after an error.
 - Windows local builds may hit ENOMEM/OOM; distinguish from real code errors (retry with `NODE_OPTIONS=--max-old-space-size=4096`).
 - Repo lives under OneDrive with a Hebrew path — quote paths in shell commands.
 - Commit history has duplicate messages (same change committed more than once) — harmless.
