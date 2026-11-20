@@ -11,11 +11,11 @@ status/payment tracking, client approvals, payment-update requests reviewed by a
 admin user management, analytics (PDF/Excel), support requests.
 
 ## Stack
-- Next.js **16.2.4** App Router, React 19.2, TypeScript, Tailwind v4. Read `node_modules/next/dist/docs/` before Next-specific code (see AGENTS.md).
+- Next.js **16.4.5** App Router (upgraded from 16.2.4 on 2026-11-20 for security advisories), React 19.2, TypeScript, Tailwind v4. Read `node_modules/next/dist/docs/` before Next-specific code (see AGENTS.md).
 - **`proxy.ts`** (Next 16 rename of middleware) — refreshes Supabase session, redirects unauthenticated users to `/login`.
 - Supabase (`@supabase/ssr` + `supabase-js`): Postgres + Auth + Storage.
 - PDF: `@react-pdf/renderer` 4 (server-side `renderToBuffer`), Heebo TTF from `public/fonts/`.
-- Excel: `exceljs` (the `xlsx` package is in package.json but unused).
+- Excel: `exceljs` for the quote export; `xlsx` (SheetJS) only in `app/api/admin/analytics/excel` — write-only, so its npm advisories (parsing) don't apply.
 - Hosting: Vercel (Hobby), Node 24.x.
 
 ## Key layout
@@ -36,7 +36,7 @@ lib/share/shareQuotePdf.ts  PDF filename (natan-valdman-price-quote-{num}-ver{nn
 lib/notesFormat.ts, lib/formatText.ts  rich notes / **bold** parsing
 lib/supabase/{client,server,admin}.ts  browser / server (cookies) / service-role clients
 types/database.ts        hand-maintained Supabase types (many `as any` casts for newer columns)
-supabase/migrations/     001…017 SQL files (source of truth for schema)
+supabase/migrations/     001…018 SQL files (source of truth for schema)
 ```
 
 ## Authentication
@@ -49,7 +49,7 @@ supabase/migrations/     001…017 SQL files (source of truth for schema)
 - Project **field-quotes**, ref `lrfcevnqtqhiqrksoqsi`, region ap-southeast-2. (Other project in the org, `SafeDoc`, is unrelated — never touch.)
 - Tables: profiles, company_settings, quotes, quote_items, item_images, quote_number_seq, quote_number_daily_seq, support_requests, quote_approvals, payment_update_requests.
 - Private storage buckets: `quote-images` (item + project images), `company-assets` (logo), `user-signatures`, `quote-approvals`. Access via signed URLs (1h).
-- **Migrations**: files 001–017 were applied manually (SQL editor); Supabase's migration history table is **empty**. Live schema was verified to match through 017. New migrations: add `supabase/migrations/0NN_name.sql` (idempotent, `IF NOT EXISTS`, end with `NOTIFY pgrst, 'reload schema';`) **and** apply it via the Supabase MCP `apply_migration`.
+- **Migrations**: files 001–017 were applied manually (SQL editor); Supabase's migration history table is **empty**. Live schema was verified to match through 017. 018 (revoke anon/authenticated EXECUTE on internal SECURITY DEFINER functions; `get_my_role` stays for authenticated because RLS uses it) was applied via MCP and is the first entry in the migration history. New migrations: add `supabase/migrations/0NN_name.sql` (idempotent, `IF NOT EXISTS`, end with `NOTIFY pgrst, 'reload schema';`) **and** apply it via the Supabase MCP `apply_migration`.
 - No Supabase CLI installed locally; use the Supabase MCP connector (scoped to this project ref).
 
 ## Env vars (names only — values in `.env.local` / Vercel, never commit)

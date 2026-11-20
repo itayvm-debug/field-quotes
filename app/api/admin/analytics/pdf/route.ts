@@ -4,6 +4,8 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 import { applyFilters, computeKPIs, computeUserStats } from '@/lib/analytics/compute'
 import { AnalyticsPDF } from '@/lib/pdf/AnalyticsPDF'
+import { resetPdfFonts } from '@/lib/pdf/fonts'
+import { todayIso } from '@/lib/dates'
 import type { RejectedRow, OverpayRow } from '@/lib/pdf/AnalyticsPDF'
 import type { RawQuote, RawProfile } from '@/lib/analytics/compute'
 
@@ -86,11 +88,13 @@ export async function GET(req: NextRequest) {
       }
     })
 
-  const now = new Date()
-  const generatedAt = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`
-  const today = now.toISOString().split('T')[0]
+  // Israel date (the server runs in UTC)
+  const today = todayIso()
+  const [yy, mm, dd] = today.split('-')
+  const generatedAt = `${dd}.${mm}.${yy}`
 
   const pdfEl = React.createElement(AnalyticsPDF, { kpi, userRows, logoUrl, companyName, generatedAt, filters: opts, filterUserName, rejectedRows, overpayRows })
+  resetPdfFonts()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buf = await renderToBuffer(pdfEl as any)
   const filename = `field-quotes-report-${today}.pdf`

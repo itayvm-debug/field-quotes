@@ -1,9 +1,9 @@
-import path from 'path'
 import React from 'react'
 import {
-  Document, Page, View, Text, Image, Font, StyleSheet,
+  Document, Page, View, Text, Image, StyleSheet,
 } from '@react-pdf/renderer'
 import type { AnalyticsKPI, UserStats } from '@/lib/analytics/compute'
+import { registerHeebo } from './fonts'
 
 export interface RejectedRow {
   quoteNumber: string | null
@@ -24,15 +24,7 @@ export interface OverpayRow {
   userName: string
 }
 
-const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
-
-Font.register({
-  family: 'Heebo',
-  fonts: [
-    { src: path.join(FONTS_DIR, 'Heebo-Regular.ttf'), fontWeight: 'normal' },
-    { src: path.join(FONTS_DIR, 'Heebo-Bold.ttf'), fontWeight: 'bold' },
-  ],
-})
+registerHeebo()
 
 const ORANGE = '#E86510'
 const BLACK = '#1A1A1A'

@@ -6,7 +6,6 @@ import {
   View,
   Text,
   Image,
-  Font,
   StyleSheet,
 } from '@react-pdf/renderer'
 import { parseNotes } from '@/lib/notesFormat'
@@ -14,32 +13,11 @@ import { applyPriceAdjustments, parsePriceAdjustments, adjustmentDisplayLabel } 
 import { formatRevisionNumber } from '@/lib/revisionNumber'
 import { getQuoteBaseTotal } from '@/lib/calculations'
 import type { PriceAdjustment } from '@/lib/priceAdjustments'
+import { registerHeebo, resetPdfFonts } from './fonts'
 
-// ── Local fonts (bundled in /public/fonts) ────────────────────────────────────
-const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
-
-function registerHeebo() {
-  Font.register({
-    family: 'Heebo',
-    fonts: [
-      { src: path.join(FONTS_DIR, 'Heebo-Regular.ttf'), fontWeight: 'normal' },
-      { src: path.join(FONTS_DIR, 'Heebo-Bold.ttf'), fontWeight: 'bold' },
-    ],
-  })
-}
+// ── Local fonts (bundled in /public/fonts) — see lib/pdf/fonts.ts ─────────────
 registerHeebo()
-
-// Give the next render a fresh fontkit instance (empty glyph cache).
-// fontkit caches glyph objects by id and the first creator decides their
-// `codePoints`; state left over from earlier renders in a warm server instance
-// can leave a glyph without code points, which makes react-pdf's BiDi
-// reordering throw "Cannot read properties of undefined (reading 'id')" for
-// some quotes. Call right before renderToBuffer.
-export function resetPdfFonts() {
-  const family = Font.getRegisteredFonts()['Heebo'] as unknown as { sources?: unknown[] } | undefined
-  if (family && Array.isArray(family.sources)) family.sources = []
-  registerHeebo()
-}
+export { resetPdfFonts }
 
 // ── Company brand colors ──────────────────────────────────────────────────────
 const ORANGE = '#E86510'
