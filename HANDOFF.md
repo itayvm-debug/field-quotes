@@ -36,7 +36,7 @@ lib/share/shareQuotePdf.ts  PDF filename (natan-valdman-price-quote-{num}-ver{nn
 lib/notesFormat.ts, lib/formatText.ts  rich notes / **bold** parsing
 lib/supabase/{client,server,admin}.ts  browser / server (cookies) / service-role clients
 types/database.ts        hand-maintained Supabase types (many `as any` casts for newer columns)
-supabase/migrations/     001…020 SQL files (source of truth for schema)
+supabase/migrations/     001…021 SQL files (source of truth for schema)
 ```
 
 ## Authentication
@@ -96,6 +96,7 @@ Claude permissions: `.claude/settings.json` (project allowlist for routine npm/g
 - Item order = `quote_items.item_number`; reordering via `ReorderItemsModal`.
 - Project image: `quotes.project_image_path/_caption/_fit`.
 - **Client book** (migration 020): `clients` table (company-wide; viewers read-only; admin deletes/merges), `quotes.client_id`. DB trigger `link_quote_client` links every quote on insert / client_name change by normalized name or `alias_keys`, creating the client if needed — so form, duplicate and any future API are covered. `quotes.client_name` remains the printed snapshot (PDFs never change). Renaming a client keeps the old name as an alias; `merge_clients(source, target)` (admin RPC) moves quotes and keeps the source name as an alias. UI: `/clients` (search, stats), `/clients/[id]` (edit, quotes, win rate, merge), `ClientPicker` in the quote form fills the default contact. Totals via `lib/quoteTotals.ts`.
+- **AI agents (MCP)**: `POST/GET /api/mcp` (stateless Streamable HTTP, `@modelcontextprotocol/sdk` WebStandard transport, JSON responses). Auth = personal bearer token `fq_…` created in `/settings/profile` ("חיבור לסוכן AI"); only the SHA-256 hash is stored in `api_tokens` (migration 021, users can list/revoke own; inserts via service role in `/api/tokens`, max 5 active). `proxy.ts` skips the cookie redirect for `/api/mcp` only. Tools (`lib/mcp/server.ts`): search_clients, search_past_items, list_recent_quotes, get_quote (read, same visibility as RLS), create_quote_draft, add_items_to_quote (drafts only; no send/delete/status). Row builders in `lib/mcp/draft.ts` (tested). Intended clients: Instinct (connected apps → MCP URL + bearer), Meta Muse (custom connector over HTTP + bearer), Claude.
 - Duplicate quote: "שכפל הצעה" on the quote page → `POST /api/quotes/[id]/duplicate` → new draft (new number, today, same validity length, VER00, current user as owner) with header + items; images/status/payment are not copied. Opens the copy in edit mode.
 - Saving in `QuoteForm` is serialized (`saveChainRef`) and ids are tracked in refs (`savedIdRef`, `insertedItemIdsRef`) so back-to-back auto-saves never insert duplicates — keep that when touching save logic.
 - Sharing: Web Share API with the generated PDF file (fallback download) — `PdfShareButton`, `lib/share/shareQuotePdf.ts`.

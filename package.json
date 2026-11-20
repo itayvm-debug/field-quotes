@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fontsource/heebo": "^5.2.8",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.1",
@@ -18,7 +19,8 @@
     "next": "16.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

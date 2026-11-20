@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProfileForm } from '@/components/ProfileForm'
+import { ApiTokensPanel } from '@/components/ApiTokensPanel'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -36,7 +37,7 @@ export default async function ProfilePage() {
         <h1 className="text-lg font-bold text-gray-900">פרופיל אישי</h1>
       </div>
 
-      <main className="px-4 py-6 max-w-2xl mx-auto">
+      <main className="px-4 py-6 max-w-2xl mx-auto space-y-4">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <ProfileForm
             userId={user.id}
@@ -46,6 +47,7 @@ export default async function ProfilePage() {
             initialSignaturePath={signaturePath}
           />
         </div>
+        <ApiTokensPanel />
       </main>
     </div>
   )
