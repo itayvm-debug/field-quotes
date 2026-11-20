@@ -42,7 +42,7 @@ const fmtDate = (s: string | null | undefined) => {
 
 // Strips stray BiDi control chars from user text first (see stripBidiControlChars),
 // then appends one RLM per non-empty line to anchor RTL direction.
-const fixRtlText = (text: string) =>
+export const fixRtlText = (text: string) =>
   stripBidiControlChars(text).split('\n').map((line) => (line.trim() ? line + '‏' : line)).join('\n')
 
 const PRICING_TYPE_LABELS: Record<string, string> = {
@@ -724,7 +724,7 @@ function renderDescriptionBlock(rawText: string, style: any): React.ReactElement
 // Strip Unicode directional control characters before PDF rendering.
 // react-pdf/PDFKit renders them as visible glyphs instead of invisible
 // formatting hints, producing garbled artifacts (i, g, etc.).
-function stripBidiControlChars(text: string): string {
+export function stripBidiControlChars(text: string): string {
   return text.replace(/[‎‏‪-‮⁦-⁩]/g, '')
 }
 

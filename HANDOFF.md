@@ -66,9 +66,11 @@ supabase/migrations/     001…019 SQL files (source of truth for schema)
 npm run dev          # local dev (localhost:3000)
 npx tsc --noEmit     # typecheck
 npm run lint         # eslint
-npm run build        # production build
+npm run build        # tests + production build
+npm test             # Vitest: tests/*.test.ts (calculations, adjustments, dates, filenames, PDF rendering)
 ```
-No test suite exists. Verification = typecheck + build + manual/browser check (and rendering a PDF when PDF code changes).
+Tests (Vitest 4, `vitest.config.mts`, alias `@` = repo root): unit tests for `lib/calculations`, `lib/priceAdjustments`, `lib/dates`, revision/filename helpers, and `tests/quotePdf.test.ts` which renders real PDFs (short, overall mode, 26-item multi-page, back-to-back renders = regression for the font-cache crash). `npm run build` = `vitest run && next build`, so failing tests block the Vercel deploy. Not covered: UI components and DB/RLS (verify those in the browser / with SQL dry-runs).
+
 Baseline 2026-11-20: `tsc` ✓, `build` ✓, `lint` ✗ with 26 **pre-existing** errors (mostly `no-explicit-any`) + 19 warnings — judge lint only on files you touch.
 
 Claude permissions: `.claude/settings.json` (project allowlist for routine npm/git/vercel/Supabase-read actions; deny list for force push, reset --hard, clean, branch deletion, rm -rf, Vercel/Supabase project removal).
