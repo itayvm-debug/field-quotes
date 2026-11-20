@@ -204,7 +204,15 @@ export default async function QuoteViewPage({ params }: Props) {
             </div>
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-1">
-            {quote.client_name || '(ללא שם לקוח)'}
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {(quote as any).client_id ? (
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              <Link href={`/clients/${(quote as any).client_id}`} className="hover:text-orange-600">
+                {quote.client_name}
+              </Link>
+            ) : (
+              quote.client_name || '(ללא שם לקוח)'
+            )}
           </h1>
           {quote.client_address && <p className="text-sm text-gray-500">{quote.client_address}</p>}
           {quote.client_contact && <p className="text-sm text-gray-500 mt-0.5">{quote.client_contact}</p>}

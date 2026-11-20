@@ -7,6 +7,7 @@ import { QuoteItemCard } from './QuoteItemCard'
 import { QuoteSummary } from './QuoteSummary'
 import { PriceAdjustmentsEditor } from './PriceAdjustmentsEditor'
 import { FieldAutocomplete } from './FieldAutocomplete'
+import { ClientPicker } from './ClientPicker'
 import { ProjectImage } from './ProjectImage'
 import { ReorderItemsModal } from './ReorderItemsModal'
 import { PAYMENT_TERMS_OPTIONS, DEFAULT_EXCLUSIONS, QUOTE_PRICING_TYPE_LABELS, PRICING_MODE_LABELS, type QuoteItemDraft, type QuoteHeaderDraft } from '@/types'
@@ -520,10 +521,17 @@ export function QuoteForm({ mode, quoteId, userId, logoUrl, initialHeader, initi
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
           <h2 className="font-semibold text-gray-700">פרטי לקוח</h2>
           <Field label="שם לקוח">
-            <FieldAutocomplete
-              field="client_name"
+            <ClientPicker
               value={header.client_name}
               onChange={(v) => setHeaderField('client_name', v)}
+              onSelectClient={(c) =>
+                setHeader((h) => ({
+                  ...h,
+                  client_name: c.name,
+                  // Fill the default contact only when the field is still empty
+                  client_contact: h.client_contact.trim() ? h.client_contact : c.contact,
+                }))
+              }
               placeholder="שם הלקוח"
               className={inputCls}
             />

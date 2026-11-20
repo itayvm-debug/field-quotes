@@ -64,6 +64,13 @@ export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount, pendingPay
         </Link>
 
         <div className="flex items-center gap-1">
+          <Link href="/clients" className="text-gray-400 p-2.5" title="לקוחות">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+          </Link>
           {isAdmin ? (
             <>
               <Link href="/admin/requests" className="relative text-gray-400 p-2.5" title="פניות משתמשים">
@@ -212,6 +219,7 @@ export function AppHeaderClient({ isAdmin, logoUrl, openRequestCount, pendingPay
           <nav className="absolute top-full right-0 left-0 z-20 bg-white shadow-lg border-t border-gray-100 md:hidden">
             <div className="divide-y divide-gray-100">
               <MenuLink href="/dashboard" onClick={closeMenu}>דשבורד</MenuLink>
+              <MenuLink href="/clients" onClick={closeMenu}>לקוחות</MenuLink>
               <MenuLink href="/settings/profile" onClick={closeMenu}>פרופיל אישי</MenuLink>
               {isAdmin ? (
                 <>
